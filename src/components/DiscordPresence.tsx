@@ -14,7 +14,8 @@ interface Props {
   bannerUrl: string | null;
   /** Owner-configured bio fallback (PROFILE_BIO). */
   fallbackBio: string | null;
-  kvBioKey: string | null;
+  /** Owner-approved Lanyard KV keys for bio and banner. */
+  kv: { bio: string | null; banner: string | null };
 }
 
 const STATUS_LABEL: Record<DiscordStatus, string> = {
@@ -32,13 +33,14 @@ const ACTIVITY_VERB = {
   competing: "competing in",
 } as const;
 
-export function DiscordPresence({ userId, bannerUrl, fallbackBio, kvBioKey }: Props) {
-  const handle = useMemo(() => getLanyardHandle(userId, { kvBioKey }), [userId, kvBioKey]);
+export function DiscordPresence({ userId, bannerUrl, fallbackBio, kv }: Props) {
+  const { bio: kvBioKey, banner: kvBannerKey } = kv;
+  const handle = useMemo(() => getLanyardHandle(userId, { kv: { bio: kvBioKey, banner: kvBannerKey } }), [userId, kvBioKey, kvBannerKey]);
   useEffect(() => handle.retain(), [handle]);
   const state = useSyncExternalStore(handle.store.subscribe, handle.store.getSnapshot, () => INITIAL_LANYARD_STATE);
 
   const { presence } = state;
-  // Bio precedence: a bio the data source genuinely returned, then the approved KV key, then the owner's PROFILE_BIO.
+  // Bio and banner precedence: what Lanyard genuinely returned, then the approved KV key, then the owner's PROFILE_* fallback.
   const bio = presence ? (presence.user.bio ?? presence.kvBio ?? fallbackBio) : fallbackBio;
   const banner = presence?.user.bannerUrl ?? bannerUrl;
   const hasTimers = Boolean(presence?.spotify?.start || presence?.activities.some((a) => a.start));

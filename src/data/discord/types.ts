@@ -46,7 +46,7 @@ export interface DiscordPresence {
     username: string;
     displayName: string;
     avatarUrl: string;
-    /** Only set when Lanyard actually returns a banner. */
+    /** A banner Lanyard returned, else the owner-approved KV banner URL; null otherwise. */
     bannerUrl: string | null;
     /** Only set when the data source actually returns a bio. */
     bio: string | null;
@@ -57,6 +57,6 @@ export interface DiscordPresence {
   customStatus: CustomStatus | null;
   spotify: SpotifyActivity | null;
   activities: ActivityView[];
-  /** Value of the single owner-approved KV key, if configured and present. */
+  /** Value of the owner-approved KV bio key, if configured and present. */
   kvBio: string | null;
 }

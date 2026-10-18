@@ -91,11 +91,39 @@ describe("parseLanyardPresence", () => {
     });
   });
 
-  it("only exposes the single approved KV key", () => {
-    const raw = presence({ kv: { bio: "hello", secret: "nope" } });
-    expect(parseLanyardPresence(raw)?.kvBio).toBeNull();
-    expect(parseLanyardPresence(raw, { kvBioKey: "bio" })?.kvBio).toBe("hello");
-    expect(JSON.stringify(parseLanyardPresence(raw, { kvBioKey: "bio" }))).not.toContain("nope");
+  it("only exposes the approved KV keys, never the rest of KV", () => {
+    const raw = presence({ kv: { bio: "hello", banner: "https://example.com/b.png", secret: "nope" } });
+    const none = parseLanyardPresence(raw);
+    expect(none?.kvBio).toBeNull();
+    expect(none?.user.bannerUrl).toBeNull();
+
+    const approved = parseLanyardPresence(raw, { kv: { bio: "bio", banner: "banner" } });
+    expect(approved?.kvBio).toBe("hello");
+    expect(approved?.user.bannerUrl).toBe("https://example.com/b.png");
+    expect(JSON.stringify(approved)).not.toContain("nope");
+  });
+
+  it("accepts a KV banner only if it is an https URL, and ignores malformed key names", () => {
+    const keys = { kv: { banner: "banner" } };
+    expect(parseLanyardPresence(presence({ kv: { banner: "http://example.com/b.png" } }), keys)?.user.bannerUrl).toBeNull();
+    expect(parseLanyardPresence(presence({ kv: { banner: "javascript:alert(1)" } }), keys)?.user.bannerUrl).toBeNull();
+    expect(parseLanyardPresence(presence({ kv: { banner: "https://user:pw@example.com/b.png" } }), keys)?.user.bannerUrl).toBeNull();
+    expect(parseLanyardPresence(presence({ kv: { banner: 42 } }), keys)?.user.bannerUrl).toBeNull();
+    // keys must be plain identifiers, so a hostile config value cannot reach into prototypes
+    expect(parseLanyardPresence(presence({ kv: { bio: "x" } }), { kv: { bio: "__proto__" } })?.kvBio).toBeNull();
+    expect(parseLanyardPresence(presence({ kv: { "a b": "x" } }), { kv: { bio: "a b" } })?.kvBio).toBeNull();
+  });
+
+  it("prefers a banner Lanyard actually returned over the KV banner", () => {
+    const raw = presence({ kv: { banner: "https://example.com/kv.png" } });
+    (raw.discord_user as Record<string, unknown>).banner = "c".repeat(32);
+    const parsed = parseLanyardPresence(raw, { kv: { banner: "banner" } });
+    expect(parsed?.user.bannerUrl).toBe(`https://cdn.discordapp.com/banners/${ID}/${"c".repeat(32)}.png?size=480`);
+  });
+
+  it("sanitises a KV bio the same way as any other external text", () => {
+    const raw = presence({ kv: { bio: "hi\u202E there\u0000" } });
+    expect(parseLanyardPresence(raw, { kv: { bio: "bio" } })?.kvBio).toBe("hi there");
   });
 
   it("uses a returned bio and banner only when the source supplies them", () => {

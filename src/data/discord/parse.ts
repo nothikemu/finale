@@ -1,6 +1,5 @@
 import { asBoolean, asFiniteNumber, asRecord, asString, oneOf, type UnknownRecord } from "@/lib/guards";
-import { cleanMultiline, cleanText } from "@/lib/sanitize";
-import { spotifyTrackUrlFromId } from "@/lib/sanitize";
+import { cleanMultiline, cleanText, safeHttpsUrl, spotifyTrackUrlFromId } from "@/lib/sanitize";
 import { avatarUrl, bannerUrl, customEmojiUrl, isSnowflake, resolveActivityImage, spotifyThumbnail } from "./assets";
 import { badgesFromPublicFlags } from "./badges";
 import type { ActivityKind, ActivityView, CustomStatus, DiscordPresence, Platform, SpotifyActivity } from "./types";
@@ -82,9 +81,20 @@ function parseActivity(raw: unknown): ActivityView | null {
   };
 }
 
+/** The only Lanyard KV keys the owner approved for display. Everything else in KV is ignored. */
+export interface KvKeys {
+  bio?: string | null;
+  banner?: string | null;
+}
+
 export interface ParseOptions {
-  /** The one Lanyard KV key the owner approved for display, if any. */
-  kvBioKey?: string | null;
+  kv?: KvKeys;
+}
+
+const KV_KEY = /^[A-Za-z0-9_]{1,255}$/;
+
+function kvValue(kv: UnknownRecord | null, key: string | null | undefined): unknown {
+  return key && KV_KEY.test(key) ? kv?.[key] : undefined;
 }
 
 /**
@@ -125,7 +135,9 @@ export function parseLanyardPresence(raw: unknown, options: ParseOptions = {}): 
   if (asBoolean(root.active_on_discord_web)) platforms.push("web");
 
   const kv = asRecord(root.kv);
-  const kvBio = options.kvBioKey ? cleanMultiline(kv?.[options.kvBioKey], 300) : null;
+  const kvBio = cleanMultiline(kvValue(kv, options.kv?.bio), 300);
+  // The owner controls this value, so any https image host is fine; scripts and plain http are not.
+  const kvBanner = safeHttpsUrl(kvValue(kv, options.kv?.banner));
   const displayName = cleanText(user.global_name, 64) ?? cleanText(user.display_name, 64) ?? username;
 
   return {
@@ -134,7 +146,8 @@ export function parseLanyardPresence(raw: unknown, options: ParseOptions = {}): 
       username,
       displayName,
       avatarUrl: avatarUrl(id, asString(user.avatar), asString(user.discriminator)),
-      bannerUrl: bannerUrl(id, user.banner),
+      // Precedence: a banner Discord/Lanyard actually returned, then the approved KV key.
+      bannerUrl: bannerUrl(id, user.banner) ?? kvBanner,
       bio: cleanMultiline(user.bio, 300),
     },
     status,

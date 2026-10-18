@@ -20,7 +20,8 @@ export function presenceFixture(overrides: Record<string, unknown> = {}) {
       album_art_url: "https://i.scdn.co/image/ab67616d0000b273abcdef0123456789",
       timestamps: { start: now - 80_000, end: now + 120_000 },
     },
-    kv: { bio: "kv value that must not be shown", secret: "kv-secret-must-not-render" },
+    // bio and banner are the two approved KV keys; "secret" is not approved and must never render
+    kv: { bio: "kv bio published through lanyard", banner: "https://images.example.test/kv-banner.png", secret: "kv-secret-must-not-render" },
     discord_user: {
       id: TEST_DISCORD_ID,
       username: "fixture_user",
@@ -56,7 +57,7 @@ export async function mockLanyard(page: Page, data: unknown = presenceFixture(),
     },
   };
 
-  await page.route(/https:\/\/(cdn\.discordapp\.com|media\.discordapp\.net|i\.scdn\.co|coverartarchive\.org)\/.*/, (route) =>
+  await page.route(/https:\/\/(cdn\.discordapp\.com|media\.discordapp\.net|i\.scdn\.co|coverartarchive\.org|images\.example\.test)\/.*/, (route) =>
     route.fulfill({ status: 200, contentType: "image/png", body: PNG }),
   );
 

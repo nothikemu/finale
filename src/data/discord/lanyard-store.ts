@@ -1,5 +1,5 @@
 import { asRecord, asFiniteNumber } from "@/lib/guards";
-import { parseLanyardPresence } from "./parse";
+import { parseLanyardPresence, type KvKeys } from "./parse";
 import type { DiscordPresence } from "./types";
 
 /**
@@ -52,7 +52,8 @@ export interface LanyardDeps {
 }
 
 export interface LanyardOptions {
-  kvBioKey?: string | null;
+  /** Owner-approved Lanyard KV keys to read (bio, banner). */
+  kv?: KvKeys;
   deps?: Partial<LanyardDeps>;
 }
 
@@ -115,7 +116,7 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
   }
 
   function acceptPresence(raw: unknown) {
-    const presence = parseLanyardPresence(raw, { kvBioKey: options.kvBioKey });
+    const presence = parseLanyardPresence(raw, { kv: options.kv });
     if (!presence) return false;
     set({ presence, updatedAt: deps.now(), failed: false, notTracked: false });
     return true;
@@ -308,7 +309,7 @@ const shared = new Map<string, { handle: LanyardHandle }>();
  * The store is started by the first retain() and stopped by the last release().
  */
 export function getLanyardHandle(userId: string, options: LanyardOptions = {}): LanyardHandle {
-  const key = `${userId}|${options.kvBioKey ?? ""}`;
+  const key = `${userId}|${options.kv?.bio ?? ""}|${options.kv?.banner ?? ""}`;
   const existing = shared.get(key);
   if (existing) return existing.handle;
 

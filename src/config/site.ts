@@ -43,11 +43,16 @@ export const site = {
 
   discord: {
     /**
-     * Optional, explicitly approved Lanyard KV key whose value is shown as the
-     * bio. KV values are public, so only this one key is ever read. Leave null
-     * to ignore KV entirely.
+     * Lanyard only relays Discord's gateway presence, which has no banner or
+     * "About Me". Its key-value store is the supported way to publish them: set
+     * the keys below with the Lanyard bot and they are read from the same
+     * presence feed. KV values are public, so ONLY the keys named here are ever
+     * read (never the whole object). Set a key to null to ignore it.
+     *
+     *   bio    plain text, up to 300 characters
+     *   banner an https:// image URL
      */
-    kvBioKey: null as string | null,
+    kv: { bio: "bio", banner: "banner" } as { bio: string | null; banner: string | null },
   },
 
   /**

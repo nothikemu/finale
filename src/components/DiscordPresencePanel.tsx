@@ -23,7 +23,7 @@ export function DiscordPresencePanel() {
     warnOnce("discord-id-invalid", "DISCORD_USER_ID must be a numeric Discord user ID.");
     return <DiscordShell state="invalid-config" hint={devHint("DISCORD_USER_ID must be numeric (see README)")} bannerUrl={bannerUrl} />;
   }
-  return <DiscordPresence userId={userId} bannerUrl={bannerUrl} fallbackBio={fallbackBio} kvBioKey={site.discord.kvBioKey} />;
+  return <DiscordPresence userId={userId} bannerUrl={bannerUrl} fallbackBio={fallbackBio} kv={site.discord.kv} />;
 }
 
 function DiscordShell({ state, hint, bannerUrl }: { state: "missing-config" | "invalid-config"; hint?: string; bannerUrl: string | null }) {

@@ -247,10 +247,12 @@ test.describe("discord presence (Lanyard)", () => {
     expect(await discord.locator(".badges .tag").allTextContents()).toEqual(["hypesquad bravery", "active developer"]);
     await expect(discord).not.toContainText(/nitro|boost/i);
 
-    // bio comes from the owner fallback, never from custom status or KV
-    await expect(discord.locator(".discord__bio")).toHaveText("owner-supplied bio fallback");
-    await expect(discord).not.toContainText("kv value that must not be shown");
+    // bio comes from the approved Lanyard KV key (beating the owner's PROFILE_BIO fallback),
+    // never from custom status, and unapproved KV keys are never rendered
+    await expect(discord.locator(".discord__bio")).toHaveText("kv bio published through lanyard");
+    await expect(discord).not.toContainText("owner-supplied bio fallback");
     await expect(discord).not.toContainText("kv-secret-must-not-render");
+    expect(await page.content()).not.toContain("kv-secret-must-not-render");
 
     // custom status separate from bio; spotify + game activity
     await expect(discord.locator(".custom-status")).toContainText("tinkering with a fixture");
@@ -262,8 +264,8 @@ test.describe("discord presence (Lanyard)", () => {
     await expect(game).toContainText("Fixture Game");
     await expect(game).toContainText("In the hangar");
     await expect(game).toContainText(/1:0\d:\d\d elapsed/);
-    // no banner was returned or configured, so the quartz material shows instead of a fabricated one
-    expect(await discord.locator(".discord__banner img").count()).toBe(0);
+    // Lanyard returned no banner field, so the approved KV banner is used
+    await expect(discord.locator(".discord__banner img")).toHaveAttribute("src", "https://images.example.test/kv-banner.png");
   });
 
   test("uses one shared WebSocket with the documented handshake and heartbeat", async ({ page }) => {
@@ -314,7 +316,23 @@ test.describe("discord presence (Lanyard)", () => {
     await expect(panel(page, "discord")).toContainText("presence not tracked");
   });
 
-  test("uses a banner only when one is returned", async ({ page }) => {
+  test("falls back to PROFILE_BIO and the quartz material when Lanyard KV has neither", async ({ page }) => {
+    await mockLanyard(page, presenceFixture({ kv: { secret: "kv-secret-must-not-render" } }));
+    await page.goto("/");
+    const discord = panel(page, "discord");
+    await expect(discord.locator(".discord__bio")).toHaveText("owner-supplied bio fallback");
+    // nothing was returned or configured for the banner, so no fabricated image appears
+    expect(await discord.locator(".discord__banner img").count()).toBe(0);
+  });
+
+  test("rejects an unsafe KV banner and keeps the material", async ({ page }) => {
+    await mockLanyard(page, presenceFixture({ kv: { banner: "http://images.example.test/insecure.png", bio: "ok" } }));
+    await page.goto("/");
+    await expect(panel(page, "discord").locator(".discord__bio")).toHaveText("ok");
+    expect(await panel(page, "discord").locator(".discord__banner img").count()).toBe(0);
+  });
+
+  test("a banner Discord actually returned beats the KV banner", async ({ page }) => {
     const data = presenceFixture();
     (data.discord_user as Record<string, unknown>).banner = "f".repeat(32);
     await mockLanyard(page, data);

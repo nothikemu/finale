@@ -30,8 +30,8 @@ Set these in `.env.local` for development and in your host's secret manager for 
 | `LISTENBRAINZ_TOKEN` | Recently played | **Yes, server only** | Used once (cached 6 h) to resolve your username via `GET /1/validate-token`. Never sent to the browser. |
 | `LISTENBRAINZ_USERNAME` | Recently played | No | Optional. If set, token validation is skipped and this username is used directly. |
 | `GITHUB_TOKEN` | Contribution calendar (required), projects (optional, raises rate limit) | **Yes, server only** | See below for the least-privilege setup. |
-| `PROFILE_BANNER_URL` | Discord banner | No | Optional `https://` image. Used only if Lanyard returns no banner. |
-| `PROFILE_BIO` | Discord bio | No | Optional text. Used only if neither the data source nor the approved KV key supplies a bio. |
+| `PROFILE_BANNER_URL` | Discord banner | No | Optional `https://` image. Last-resort fallback: used only if Lanyard returns no banner and the `banner` KV key is empty. |
+| `PROFILE_BIO` | Discord bio | No | Optional text. Last-resort fallback: used only if Lanyard returns no bio and the `bio` KV key is empty. |
 
 ### Discord (Lanyard)
 
@@ -43,8 +43,9 @@ The browser talks to Lanyard directly (`GET https://api.lanyard.rest/v1/users/{i
 
 What Lanyard does **not** guarantee, and how the panel handles it honestly:
 
-- **Banner / bio:** Lanyard does not provide them. The panel renders a banner or bio only if the data source actually returned one; otherwise it uses `PROFILE_BANNER_URL` / `PROFILE_BIO`, and without those it shows a quartz glass material instead of a fabricated banner. Custom status is never shown as the bio.
-- **Lanyard KV:** KV values are public. The panel never dumps KV. To source the bio from one KV key, set `site.discord.kvBioKey` in `src/config/site.ts`; only that key is read.
+- **Banner / bio come from Lanyard KV.** Lanyard only relays Discord's gateway presence, which contains no banner and no "About Me", so the supported way to publish them through Lanyard is its key-value store. The panel reads exactly two approved keys, `bio` and `banner` (configured in `site.discord.kv` in `src/config/site.ts`). In the Lanyard Discord server, use the Lanyard bot's `.set` command, for example `.set bio mechanical engineering student` and `.set banner https://example.com/banner.png` (see the KV section of <https://github.com/Phineas/lanyard> for the exact syntax). Changes arrive over the live socket.
+  - **Precedence:** a banner or bio Lanyard genuinely returned in the presence data, then the approved KV key, then `PROFILE_BANNER_URL` / `PROFILE_BIO`. With none of them, the banner area shows a quartz glass material instead of a fabricated Discord banner, and no bio is shown. Custom status is never shown as the bio.
+  - **Safety:** KV values are public and owner-controlled, so the bio is sanitised and rendered as text only, and the banner must be an `https://` URL without credentials. Any other KV key is never read or rendered; the panel never dumps KV.
 - **Badges:** derived from `public_flags` only. Nitro and boosting are not in that data, so they are never shown.
 - **Unreachable vs offline:** a disconnected API shows "presence unavailable" (or "stale · reconnecting" with last-known data), never "offline".
 
@@ -122,8 +123,8 @@ Run in the development sandbox on 2026-10-18 (Chromium via Playwright, Node 22):
 
 | Check | Result |
 | --- | --- |
-| Unit tests | 56 passed |
-| End-to-end tests | 88 passed (layout, content, interaction, states, security, accessibility) |
+| Unit tests | 59 passed |
+| End-to-end tests | 90 passed (layout, content, interaction, states, security, accessibility) |
 | ESLint, `tsc --noEmit`, production `next build` | clean |
 | `npm audit --omit=dev` | 0 vulnerabilities (dev-only advisories exist in test tooling) |
 | axe-core (WCAG 2.0-2.2 A/AA + best practices), 1440 px and 390 px | 0 violations |
@@ -134,7 +135,7 @@ The acceptance checklist, mapped to tests:
 - **No rounded corners:** every element and `::before`/`::after` has a computed `border-radius` of 0.
 - **OLED black and quartz-only accents:** asserted on computed colours; font actually loaded (both weights, `document.fonts`).
 - **Socials, personal copy, three word effects:** exact hrefs/handles; about text asserted verbatim; each effect animates on hover without layout shift and is inert under reduced motion.
-- **Discord:** honest handling of absent fields, one shared socket, live updates, stale/unavailable/untracked states, no invented badges, KV never dumped.
+- **Discord:** honest handling of absent fields, one shared socket, live updates, stale/unavailable/untracked states, no invented badges, only the two approved KV keys read (bio sanitised, banner https-only), KV never dumped.
 - **ListenBrainz token never reaches the browser:** the fake token is absent from HTML, every script and JSON response, and storage; the browser makes no direct call to ListenBrainz or GitHub.
 - **Scroll regions:** native scrolling, hidden scrollbar, named and keyboard-focusable, headings stay put; all 40 fixture repositories (two Link-paginated pages) reachable.
 - **Calendar:** every returned day is a square cell with an accessible date and count, totals match, month/weekday labels, legend and period present, nothing cropped on desktop, scrolls inside the panel on mobile and opens on the latest week, keyboard arrow navigation, tap/focus tooltips.
@@ -159,7 +160,7 @@ The sandbox blocks outbound access to Discord/Lanyard, GitHub's API and ListenBr
 1. `DISCORD_USER_ID`, and joining the Lanyard server so the account is tracked.
 2. `LISTENBRAINZ_TOKEN` (reset first, per the note above) in the deployment's secret manager, and Spotify connected to ListenBrainz.
 3. `GITHUB_TOKEN`: fine-grained, public repositories read-only.
-4. Optional: `PROFILE_BANNER_URL`, `PROFILE_BIO`, or a Lanyard KV key (`site.discord.kvBioKey`).
+4. To show a banner and bio: set the `banner` and `bio` keys in Lanyard KV (see the Discord section), or use the `PROFILE_BANNER_URL` / `PROFILE_BIO` fallbacks.
 
 ## Notes and small deviations from the brief
 
