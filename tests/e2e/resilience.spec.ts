@@ -19,7 +19,7 @@ test.describe("GitHub rejects the token (401 Bad credentials)", () => {
     await mockLanyard(page);
     await page.goto("/");
     await expect(panel(page, "projects").locator(".project").first()).toBeVisible();
-    expect(await panel(page, "projects").locator(".project").count()).toBe(40);
+    await expect(panel(page, "projects").locator(".project")).toHaveCount(40);
     await page.locator(".calendar__svg").waitFor();
     await calendarIsReal(page);
     // nothing is reported as broken, so there is no failure hint on the page
@@ -44,7 +44,7 @@ test.describe("no credentials at all, but GitHub's public pages work", () => {
   test("the repository list and the contribution graph need no token", async ({ page }) => {
     await mockLanyard(page);
     await page.goto("/");
-    expect(await panel(page, "projects").locator(".project").count()).toBe(40);
+    await expect(panel(page, "projects").locator(".project")).toHaveCount(40);
     await page.locator(".calendar__svg").waitFor();
     await calendarIsReal(page);
   });

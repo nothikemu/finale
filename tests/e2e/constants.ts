@@ -20,4 +20,6 @@ export const URLS = {
   outageDiagnostics: "http://localhost:3105",
   /** no credentials at all, but GitHub's public pages work */
   publicOnly: "http://localhost:3106",
+  /** healthy, and the server (not the browser) can reach Lanyard; owner hints on */
+  serverLanyard: "http://localhost:3107",
 } as const;

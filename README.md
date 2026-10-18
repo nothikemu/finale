@@ -39,10 +39,12 @@ Set these in `.env.local` for development and in your host's secret manager for 
 ### Discord (Lanyard)
 
 1. In Discord: **Settings → Advanced → Developer Mode** on, then right-click your profile → **Copy User ID**.
-2. Join the Lanyard Discord server (<https://discord.gg/lanyard>) with that account. Lanyard only tracks users who are in its server; otherwise the panel shows "presence not tracked".
+2. Join the Lanyard Discord server (<https://discord.gg/UrXF2cfJ7F>, the invite in [Lanyard's README](https://github.com/Phineas/lanyard)) with that account. Lanyard only tracks users who are in its server; otherwise the panel shows "presence not tracked".
 3. Set `DISCORD_USER_ID`.
 
 The browser talks to Lanyard directly (`GET https://api.lanyard.rest/v1/users/{id}` once for first paint, plus one shared `wss://api.lanyard.rest/socket` subscription). Handshake, heartbeat at the advertised interval, jittered exponential reconnect, and cleanup are implemented in `src/data/discord/lanyard-store.ts` and unit-tested with a fake socket.
+
+**Second route through the server.** If the visitor's browser cannot get presence from Lanyard (an ad blocker, a VPN, a firewall), the panel asks this site's own server instead (`/api/presence`, which reads the same public REST endpoint, with no credential involved and a 10 s cache). It keeps asking every 30 s while the socket is not live, and the panel is then labelled "stale · reconnecting" rather than "live". The server's answer is never preferred over live data from the browser. Only the owner-approved KV keys appear in it.
 
 What Lanyard does **not** guarantee, and how the panel handles it honestly:
 
@@ -50,7 +52,7 @@ What Lanyard does **not** guarantee, and how the panel handles it honestly:
   - **Precedence:** a banner or bio Lanyard genuinely returned in the presence data, then the approved KV key, then `PROFILE_BANNER_URL` / `PROFILE_BIO`. With none of them, the banner area shows a quartz glass material instead of a fabricated Discord banner, and no bio is shown. Custom status is never shown as the bio.
   - **Safety:** KV values are public and owner-controlled, so the bio is sanitised and rendered as text only, and the banner must be an `https://` URL without credentials. Any other KV key is never read or rendered; the panel never dumps KV.
 - **Badges:** derived from `public_flags` only. Nitro and boosting are not in that data, so they are never shown.
-- **Unreachable vs offline:** a disconnected API shows "presence unavailable" (or "stale · reconnecting" with last-known data), never "offline".
+- **Unreachable vs offline:** when neither the browser nor the server can get presence, the panel shows "presence unavailable" (or "stale · reconnecting" with last-known data), never "offline".
 
 ### ListenBrainz
 
@@ -84,8 +86,9 @@ Common causes:
 | Symptom | Cause and fix |
 | --- | --- |
 | Everything says "not configured" | The environment file is not being read. It must be named `.env.local` and sit next to `package.json`. File managers hide dotfiles, so check with `ls -a`. Hosts such as Vercel and Netlify do **not** upload `.env.local`; add the variables in the host's settings instead. |
-| Discord says "presence not tracked" | Lanyard only tracks accounts in its server. Join <https://discord.gg/lanyard> with that exact account. |
-| Discord says "presence unavailable" | The browser cannot reach `api.lanyard.rest` (ad blocker, VPN, firewall). Open the browser console. |
+| Discord says "presence not tracked" | Lanyard only tracks accounts in its server. Join <https://discord.gg/UrXF2cfJ7F> with that exact account. |
+| Discord says "presence unavailable" | Neither the browser nor this site's server could get presence. With `SHOW_DIAGNOSTICS=1` the panel says why, for example `the browser could not reach api.lanyard.rest; the dashboard's server could not get it either (lanyard: network)`. Run `npm run doctor`: if it can reach Lanyard, the cause is between the running server and the internet (see the proxy row below). |
+| Discord shows data but says "stale · reconnecting" | The live socket (`wss://api.lanyard.rest/socket`) is blocked for that visitor, so the panel is showing the server's snapshot, refreshed every 30 s. Allow the socket to get live updates. |
 | Listening says "no recent listens" | ListenBrainz has no listens for you. Connect Spotify under ListenBrainz > Settings > Connect services, then play something. |
 | Listening says "unavailable" with `auth` | The ListenBrainz token is wrong. Copy a fresh one from <https://listenbrainz.org/settings/>. |
 | Everything from GitHub is "unavailable" with `rate-limited` | GitHub allows 60 anonymous requests an hour per IP. Add a valid `GITHUB_TOKEN`, or wait. |
@@ -142,10 +145,10 @@ Every data panel has distinct **loading** (static skeleton), **success**, **legi
 npm run lint
 npm run typecheck
 npm test              # unit tests (Vitest)
-npm run test:e2e      # builds, starts three servers, runs Playwright
+npm run test:e2e      # builds, starts seven servers, runs Playwright
 ```
 
-The e2e suite needs no credentials or live services (run `npx playwright install chromium` once if Playwright has no browser yet). It starts the production build three times: healthy upstreams, nothing configured, and a total upstream outage. Upstream GitHub/ListenBrainz responses come from `tests/e2e/fixtures/upstream-preload.mjs`, a **test-only** `NODE_OPTIONS=--import` preload that is never part of the app; Lanyard (REST and WebSocket) is mocked inside the browser. Fake secrets are used so the suite can prove they never reach HTML, scripts, API responses or storage.
+The e2e suite needs no credentials or live services (run `npx playwright install chromium` once if Playwright has no browser yet). It starts the production build seven times: healthy upstreams, nothing configured, a total upstream outage, a rejected GitHub token, an outage with owner diagnostics, a no-credentials run with GitHub's public pages, and a run where the server (but not the browser) can reach Lanyard. Upstream GitHub/ListenBrainz responses come from `tests/e2e/fixtures/upstream-preload.mjs`, a **test-only** `NODE_OPTIONS=--import` preload that is never part of the app; Lanyard (REST and WebSocket) is mocked inside the browser, and the server's own view of Lanyard is selected per server by `LANYARD_FIXTURE`. Fake secrets are used so the suite can prove they never reach HTML, scripts, API responses or storage.
 
 ## Verification
 
@@ -153,8 +156,8 @@ Results at release (Chromium via Playwright, Node 22):
 
 | Check | Result |
 | --- | --- |
-| Unit tests | 92 passed |
-| End-to-end tests | 121 passed (layout, content, interaction, states, security, accessibility, cross-state consistency, resilience, doctor) |
+| Unit tests | 120 passed |
+| End-to-end tests | 131 passed, three consecutive runs on a fresh build (layout, content, interaction, states, security, accessibility, cross-state consistency, resilience, doctor) |
 | ESLint, `tsc --noEmit`, production `next build` | clean |
 | `npm audit --omit=dev` | 0 vulnerabilities (dev-only advisories exist in test tooling) |
 | axe-core (WCAG 2.0-2.2 A/AA + best practices), 1440 px and 390 px | 0 violations |
@@ -185,7 +188,7 @@ Honest reading: the simulated-mobile LCP misses the 2.5 s target. On a phone-siz
 
 **GitHub** was exercised against the real GitHub with a real account during development: the app returned all of the account's public repositories and its GraphQL calendar, and the real public contributions page parses correctly (365 contiguous days, with a total equal to GitHub's own heading).
 
-**Lanyard and ListenBrainz** could not be reached from the build environment, so those two rest on their official documentation (Lanyard's README for the REST and WebSocket protocol; ListenBrainz's JSON docs for listens), fixtures and unit tests. Run `npm run doctor` on your machine to confirm them against the real services.
+**Lanyard and ListenBrainz** could not be reached from the build environment, so those two rest on their published sources (Lanyard's README for the REST and WebSocket protocol; ListenBrainz's `views/api.py` for `validate-token`, `listens` and `playing-now`, which need no token for public listens), fixtures and unit tests. Run `npm run doctor` on your machine to confirm them against the real services.
 
 ## Setup checklist
 

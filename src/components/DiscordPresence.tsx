@@ -22,6 +22,12 @@ interface Props {
   hints: boolean;
 }
 
+/** Served by this site's own server, for visitors whose network cannot reach Lanyard. */
+const FALLBACK_URL = "/api/presence";
+
+/** Lanyard only tracks accounts that joined its Discord server (invite from Lanyard's README). */
+const LANYARD_INVITE = "https://discord.gg/UrXF2cfJ7F";
+
 const STATUS_LABEL: Record<DiscordStatus, string> = {
   online: "online",
   idle: "idle",
@@ -39,7 +45,7 @@ const ACTIVITY_VERB = {
 
 export function DiscordPresence({ userId, bannerUrl, fallbackBio, kv, hints }: Props) {
   const { bio: kvBioKey, banner: kvBannerKey } = kv;
-  const handle = useMemo(() => getLanyardHandle(userId, { kv: { bio: kvBioKey, banner: kvBannerKey } }), [userId, kvBioKey, kvBannerKey]);
+  const handle = useMemo(() => getLanyardHandle(userId, { kv: { bio: kvBioKey, banner: kvBannerKey }, fallbackUrl: FALLBACK_URL }), [userId, kvBioKey, kvBannerKey]);
   useEffect(() => handle.retain(), [handle]);
   const state = useSyncExternalStore(handle.store.subscribe, handle.store.getSnapshot, () => INITIAL_LANYARD_STATE);
 
@@ -64,9 +70,9 @@ export function DiscordPresence({ userId, bannerUrl, fallbackBio, kv, hints }: P
       </div>
 
       {state.notTracked ? (
-        <Message text="presence not tracked" hint={hint("this Discord account is not tracked by Lanyard: join https://discord.gg/lanyard with it (see README)", hints)} />
+        <Message text="presence not tracked" hint={hint(`this Discord account is not tracked by Lanyard: join ${LANYARD_INVITE} with it (see README)`, hints)} />
       ) : presence === null ? (
-        state.failed ? <Message text="presence unavailable" hint={hint("the browser could not reach api.lanyard.rest (blocked network, extension or firewall?). open the browser console for details", hints)} /> : <PresenceSkeleton />
+        state.failed ? <Message text="presence unavailable" hint={hint(`${state.detail ?? "no presence arrived from Lanyard"} (see README: troubleshooting)`, hints)} /> : <PresenceSkeleton />
       ) : (
         <>
           <Identity presence={presence} />

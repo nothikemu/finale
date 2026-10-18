@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { expireLanyardSettleTimer, mockLanyard, panel, presenceFixture, settle } from "./helpers";
+import { expireLanyardSettleTimer, mockLanyard, panel, presenceFixture, settle, waitForSubscription } from "./helpers";
 
 test.describe("calendar interaction", () => {
   test.beforeEach(async ({ page }) => {
@@ -281,6 +281,7 @@ test.describe("discord presence (Lanyard)", () => {
     await page.goto("/");
     const status = panel(page, "discord").locator(".discord__status");
     await expect(status).toContainText("online");
+    await waitForSubscription(mock);
     mock.push(presenceFixture({ discord_status: "dnd", spotify: null, listening_to_spotify: false, activities: [] }));
     await expect(status).toContainText("do not disturb");
     await expect(panel(page, "discord")).toContainText("no current activity");

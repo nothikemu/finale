@@ -13,6 +13,7 @@ import { FAKE_SECRETS, TEST_DISCORD_ID } from "./tests/e2e/constants";
  *   3104  a GITHUB_TOKEN that GitHub rejects with 401, owner diagnostics on
  *   3105  every call fails and SHOW_DIAGNOSTICS=1, so panels explain why
  *   3106  no credentials at all, but GitHub's public pages work
+ *   3107  healthy, and the server (not the browser) can reach Lanyard
  *
  * The upstream fixtures live in tests/e2e/fixtures and are preloaded into the
  * server process with NODE_OPTIONS. They are test-only; see that file.
@@ -21,7 +22,7 @@ import { FAKE_SECRETS, TEST_DISCORD_ID } from "./tests/e2e/constants";
 
 const preload = `--import ${path.join(__dirname, "tests/e2e/fixtures/upstream-preload.mjs")}`;
 
-const blank = { DISCORD_USER_ID: "", LISTENBRAINZ_TOKEN: "", LISTENBRAINZ_USERNAME: "", GITHUB_TOKEN: "", PROFILE_BANNER_URL: "", PROFILE_BIO: "", SHOW_DIAGNOSTICS: "" };
+const blank = { DISCORD_USER_ID: "", LISTENBRAINZ_TOKEN: "", LISTENBRAINZ_USERNAME: "", GITHUB_TOKEN: "", PROFILE_BANNER_URL: "", PROFILE_BIO: "", SHOW_DIAGNOSTICS: "", LANYARD_FIXTURE: "" };
 
 function server(port: number, env: Record<string, string>) {
   return {
@@ -69,5 +70,13 @@ export default defineConfig({
       SHOW_DIAGNOSTICS: "1",
     }),
     server(3106, { FIXTURE_MODE: "ok" }),
+    server(3107, {
+      FIXTURE_MODE: "ok",
+      LANYARD_FIXTURE: "ok",
+      DISCORD_USER_ID: TEST_DISCORD_ID,
+      GITHUB_TOKEN: FAKE_SECRETS.GITHUB_TOKEN,
+      LISTENBRAINZ_TOKEN: FAKE_SECRETS.LISTENBRAINZ_TOKEN,
+      SHOW_DIAGNOSTICS: "1",
+    }),
   ],
 });

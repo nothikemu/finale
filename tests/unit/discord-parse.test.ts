@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { avatarUrl, resolveActivityImage, spotifyThumbnail } from "@/data/discord/assets";
 import { badgesFromPublicFlags } from "@/data/discord/badges";
-import { parseLanyardPresence } from "@/data/discord/parse";
+import { isPresenceView, parseLanyardPresence, presenceProblem } from "@/data/discord/parse";
 import { resolveBanner, resolveBio } from "@/data/discord/profile";
 
 const ID = "100000000000000001"; // test fixture, not the owner's ID
@@ -208,5 +208,40 @@ describe("profile precedence (bio and banner)", () => {
     expect(resolveBanner(withUser({}, {}), FALLBACK_BANNER)).toBe(FALLBACK_BANNER);
     expect(resolveBanner(withUser({}, {}), null)).toBeNull();
     expect(resolveBanner(null, FALLBACK_BANNER)).toBe(FALLBACK_BANNER);
+  });
+});
+
+describe("presenceProblem", () => {
+  it("is null for a payload that parses", () => {
+    expect(presenceProblem(presence())).toBeNull();
+    expect(parseLanyardPresence(presence())).not.toBeNull();
+  });
+
+  it("names the first field that is wrong, never a value", () => {
+    expect(presenceProblem(null)).toMatch(/not an object/);
+    expect(presenceProblem({ discord_status: "online" })).toBe("discord_user is missing");
+    expect(presenceProblem({ ...presence(), discord_user: { id: "not-a-snowflake-secret-123", username: "u" } })).toBe("discord_user.id is not a Discord ID");
+    expect(presenceProblem({ ...presence(), discord_user: { id: ID } })).toBe("discord_user.username is missing");
+    expect(presenceProblem(presence({ discord_status: "away" }))).toMatch(/discord_status/);
+    expect(presenceProblem({ ...presence(), discord_user: { id: "not-a-snowflake-secret-123", username: "u" } })).not.toContain("secret");
+  });
+
+  it("agrees with the parser: a problem means no presence", () => {
+    for (const raw of [null, {}, presence({ discord_status: "away" }), { ...presence(), discord_user: {} }]) {
+      expect(presenceProblem(raw) !== null).toBe(parseLanyardPresence(raw) === null);
+    }
+  });
+});
+
+describe("isPresenceView", () => {
+  it("accepts what the parser produces and rejects anything else", () => {
+    const view = parseLanyardPresence(presence())!;
+    expect(isPresenceView(view)).toBe(true);
+    expect(isPresenceView(JSON.parse(JSON.stringify(view)))).toBe(true);
+    expect(isPresenceView(null)).toBe(false);
+    expect(isPresenceView({})).toBe(false);
+    expect(isPresenceView({ ...view, status: "away" })).toBe(false);
+    expect(isPresenceView({ ...view, activities: undefined })).toBe(false);
+    expect(isPresenceView({ ...view, user: { id: ID } })).toBe(false);
   });
 });

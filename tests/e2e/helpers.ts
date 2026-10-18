@@ -104,6 +104,15 @@ export async function settle(page: Page) {
 }
 
 /**
+ * Lanyard sends INIT_STATE in reply to the page's subscribe frame, and the page can already show REST data
+ * before that. Once the mock has seen the frame its INIT_STATE is already queued, so anything pushed after
+ * this resolves is delivered after it, as it would be by the real service.
+ */
+export async function waitForSubscription(mock: LanyardMock) {
+  await expect.poll(() => mock.received.some((frame) => frame.op === 2), { message: "the page should have subscribed on the socket" }).toBe(true);
+}
+
+/**
  * The Discord panel gives up on Lanyard 10 seconds after its connection starts. With a fake clock that
  * timer only exists once the page has hydrated, so wait for the page's first Lanyard request before
  * moving the clock; fast-forwarding earlier would race hydration and move time for a timer not yet set.

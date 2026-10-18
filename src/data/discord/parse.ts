@@ -100,6 +100,42 @@ function kvValue(kv: UnknownRecord | null, key: string | null | undefined): unkn
 }
 
 /**
+ * Names the first thing wrong with a Lanyard presence payload: field names only, never values.
+ * Lets owner diagnostics say "discord_user.id is not a Discord ID" instead of "something failed".
+ */
+export function presenceProblem(raw: unknown): string | null {
+  const root = asRecord(raw);
+  if (!root) return "the payload is not an object";
+  const user = asRecord(root.discord_user);
+  if (!user) return "discord_user is missing";
+  const id = asString(user.id);
+  if (!id || !isSnowflake(id)) return "discord_user.id is not a Discord ID";
+  if (!cleanText(user.username, 64)) return "discord_user.username is missing";
+  if (!oneOf(root.discord_status, STATUSES)) return "discord_status is not online, idle, dnd or offline";
+  return null;
+}
+
+/**
+ * Cheap shape check for a presence that this site's own server already validated and
+ * normalised (`/api/presence`). The full validation happens once, on the server.
+ */
+export function isPresenceView(value: unknown): value is DiscordPresence {
+  const view = asRecord(value);
+  const user = asRecord(view?.user);
+  return (
+    view !== null &&
+    user !== null &&
+    typeof user.id === "string" &&
+    typeof user.displayName === "string" &&
+    typeof user.avatarUrl === "string" &&
+    oneOf(view.status, STATUSES) !== null &&
+    Array.isArray(view.badges) &&
+    Array.isArray(view.platforms) &&
+    Array.isArray(view.activities)
+  );
+}
+
+/**
  * Validates and normalises a Lanyard presence object (REST `data` or the `d` of
  * a socket event). Returns null if it does not look like a presence at all, so
  * malformed payloads never reach the UI. Optional fields stay null unless the

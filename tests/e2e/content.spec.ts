@@ -6,6 +6,8 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await page.locator(".panel--listening .track").first().waitFor();
   await page.locator(".calendar__svg").waitFor();
+  // Projects stream in on their own after two paginated GitHub calls; reads below are one-shot.
+  await page.locator(".panel--projects .project").first().waitFor();
 });
 
 test("panel headings", async ({ page }) => {

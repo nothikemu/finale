@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { backoffDelay, createLanyardStore, getLanyardHandle, type SocketLike } from "@/data/discord/lanyard-store";
+import { parseLanyardPresence } from "@/data/discord/parse";
 
 const ID = "100000000000000001";
 
@@ -235,5 +236,158 @@ describe("lanyard store", () => {
     expect(FakeSocket.instances[0]!.closedWith).toBeUndefined();
     releaseB();
     expect(FakeSocket.instances[0]!.closedWith).toBe(1000);
+  });
+});
+
+describe("lanyard store with the server fallback", () => {
+  const FALLBACK = "/api/presence";
+  const view = (status = "dnd") => parseLanyardPresence({ ...presenceData(status), discord_status: status })!;
+  const fromServer = (body: unknown, status = 200) => () => Promise.resolve(new Response(JSON.stringify(body), { status }));
+  const snapshotOk = (status = "dnd") => fromServer({ status: "ok", data: { tracked: true, presence: view(status) }, fetchedAt: 1, stale: false });
+
+  function makeFallbackStore(rest: () => Promise<Response>, fallback: () => Promise<Response>) {
+    const calls: string[] = [];
+    const fetchFn = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      return url === FALLBACK ? fallback() : rest();
+    });
+    const store = createLanyardStore(ID, {
+      fallbackUrl: FALLBACK,
+      deps: {
+        createSocket: (url) => new FakeSocket(url),
+        fetch: fetchFn as unknown as typeof fetch,
+        random: () => 0.5,
+        isHidden: () => hidden,
+        onVisibilityChange: (listener) => {
+          visibilityListener = listener;
+          return () => {
+            visibilityListener = undefined;
+          };
+        },
+      },
+    });
+    return { store, calls };
+  }
+
+  it("asks the server as soon as the browser cannot reach Lanyard, and shows what it knows", async () => {
+    const { store, calls } = makeFallbackStore(restDown, snapshotOk("dnd"));
+    store.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toEqual([expect.stringContaining("api.lanyard.rest"), FALLBACK]);
+    expect(store.getSnapshot()).toMatchObject({ failed: false, notTracked: false, detail: null });
+    expect(store.getSnapshot().presence?.status).toBe("dnd");
+    // The socket never delivered, so this is honestly not live.
+    expect(store.getSnapshot().connection).not.toBe("open");
+    store.stop();
+  });
+
+  it("reports both causes when neither the browser nor the server can get presence", async () => {
+    const { store } = makeFallbackStore(restDown, fromServer({ status: "unavailable", reason: "network", detail: "lanyard: network" }, 502));
+    store.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const snapshot = store.getSnapshot();
+    expect(snapshot).toMatchObject({ failed: true, presence: null });
+    expect(snapshot.detail).toContain("the browser could not reach api.lanyard.rest");
+    expect(snapshot.detail).toContain("lanyard: network");
+    store.stop();
+  });
+
+  it("trusts the server when it says the account is not tracked", async () => {
+    const { store } = makeFallbackStore(restDown, fromServer({ status: "ok", data: { tracked: false, presence: null }, fetchedAt: 1, stale: false }));
+    store.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getSnapshot()).toMatchObject({ notTracked: true, failed: false, presence: null });
+    store.stop();
+  });
+
+  it("rejects a snapshot that is not shaped like a presence", async () => {
+    const { store } = makeFallbackStore(restDown, fromServer({ status: "ok", data: { tracked: true, presence: { user: {} } } }));
+    store.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getSnapshot()).toMatchObject({ failed: true, presence: null });
+    expect(store.getSnapshot().detail).toContain("unexpected answer");
+    store.stop();
+  });
+
+  it("names what is wrong with an answer it cannot read", async () => {
+    const unreadable = () => Promise.resolve(new Response(JSON.stringify({ success: true, data: { discord_status: "online" } }), { status: 200 }));
+    const { store } = makeFallbackStore(unreadable, fromServer({ status: "unavailable", detail: "lanyard (discord_user is missing): invalid-response" }, 502));
+    store.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getSnapshot().failed).toBe(true);
+    expect(store.getSnapshot().detail).toContain("discord_user is missing");
+    store.stop();
+
+    // Without a fallback the same cause is still reported, once the panel gives up.
+    const alone = makeStore(unreadable);
+    alone.start();
+    await vi.advanceTimersByTimeAsync(11_000);
+    expect(alone.getSnapshot()).toMatchObject({ failed: true });
+    expect(alone.getSnapshot().detail).toContain("discord_user is missing");
+    alone.stop();
+  });
+
+  it("does not use the server while the browser has what it needs", async () => {
+    const { store, calls } = makeFallbackStore(restOk, snapshotOk("dnd"));
+    store.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const socket = FakeSocket.instances[0]!;
+    socket.open();
+    socket.emit({ op: 1, d: { heartbeat_interval: 30_000 } });
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(calls).not.toContain(FALLBACK);
+    expect(store.getSnapshot().presence?.status).toBe("idle");
+    store.stop();
+  });
+
+  it("keeps refreshing from the server while the socket is not live, and stops when it is", async () => {
+    let served = "dnd";
+    const { store, calls } = makeFallbackStore(restOk, () => snapshotOk(served)());
+    store.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getSnapshot().presence?.status).toBe("idle"); // REST first paint
+    expect(calls).not.toContain(FALLBACK);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(calls.filter((url) => url === FALLBACK)).toHaveLength(1);
+    expect(store.getSnapshot().presence?.status).toBe("dnd");
+
+    served = "online";
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(store.getSnapshot().presence?.status).toBe("online");
+
+    // Once the socket delivers, the live data wins and the server is left alone.
+    const socket = FakeSocket.instances[0]!;
+    socket.open();
+    socket.emit({ op: 1, d: { heartbeat_interval: 30_000 } });
+    socket.emit({ op: 0, t: "INIT_STATE", d: presenceData("idle") });
+    const before = calls.length;
+    served = "offline";
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(calls).toHaveLength(before);
+    expect(store.getSnapshot().presence?.status).toBe("idle");
+    store.stop();
+  });
+
+  it("recovers from a failed state when the server later has presence", async () => {
+    let answer = fromServer({ status: "unavailable", detail: "lanyard: network" }, 502);
+    const { store } = makeFallbackStore(restDown, () => answer());
+    store.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getSnapshot().failed).toBe(true);
+    answer = snapshotOk("online");
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(store.getSnapshot()).toMatchObject({ failed: false, detail: null });
+    expect(store.getSnapshot().presence?.status).toBe("online");
+    store.stop();
+  });
+
+  it("cleans up the fallback poll when stopped", async () => {
+    const { store } = makeFallbackStore(restOk, snapshotOk());
+    store.start();
+    await vi.advanceTimersByTimeAsync(0);
+    store.stop();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

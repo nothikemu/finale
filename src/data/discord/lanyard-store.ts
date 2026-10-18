@@ -1,5 +1,5 @@
 import { asRecord, asFiniteNumber } from "@/lib/guards";
-import { parseLanyardPresence, type KvKeys } from "./parse";
+import { isPresenceView, parseLanyardPresence, presenceProblem, type KvKeys } from "./parse";
 import type { DiscordPresence } from "./types";
 
 /**
@@ -14,6 +14,11 @@ import type { DiscordPresence } from "./types";
  * The REST endpoint is fetched once alongside the socket so first paint does
  * not depend on the socket, and so "user is not tracked by Lanyard" can be told
  * apart from "Lanyard is unreachable".
+ *
+ * If the browser cannot get presence from Lanyard (an ad blocker, a VPN, a
+ * firewall), the store asks this site's own server instead (`fallbackUrl`),
+ * which reads the same REST endpoint. It keeps asking while the socket is not
+ * live, so the panel still shows real data, labelled as not live.
  */
 
 export const LANYARD_SOCKET_URL = "wss://api.lanyard.rest/socket";
@@ -28,6 +33,8 @@ export interface LanyardState {
   failed: boolean;
   /** Lanyard says this user is not being monitored. */
   notTracked: boolean;
+  /** When `failed`: what went wrong, for owner diagnostics. Never contains credentials. */
+  detail: string | null;
   /** Unix ms of the last presence we accepted. */
   updatedAt: number | null;
 }
@@ -54,6 +61,8 @@ export interface LanyardDeps {
 export interface LanyardOptions {
   /** Owner-approved Lanyard KV keys to read (bio, banner). */
   kv?: KvKeys;
+  /** Same-origin URL answering with the server's own snapshot of the presence (see /api/presence). */
+  fallbackUrl?: string;
   deps?: Partial<LanyardDeps>;
 }
 
@@ -65,6 +74,8 @@ const BACKOFF_MAX_MS = 60_000;
 /** Close the socket after this long hidden; a backgrounded tab cannot heartbeat reliably anyway. */
 const HIDDEN_CLOSE_MS = 60_000;
 const REST_TIMEOUT_MS = 8_000;
+/** While the socket is not live, refresh from the server this often. */
+const FALLBACK_POLL_MS = 30_000;
 
 export interface LanyardStore {
   subscribe(listener: () => void): () => void;
@@ -109,6 +120,13 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
   let restController: AbortController | undefined;
   let restTimer: ReturnType<typeof setTimeout> | undefined;
   let restDone = false;
+  /** Why the browser's own REST request produced nothing, if it did not. */
+  let restIssue: string | null = null;
+  let fallbackController: AbortController | undefined;
+  let fallbackPoll: ReturnType<typeof setInterval> | undefined;
+  let fallbackInflight = false;
+  let fallbackTried = false;
+  let serverIssue: string | null = null;
 
   function set(patch: Partial<LanyardState>) {
     state = { ...state, ...patch };
@@ -118,8 +136,28 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
   function acceptPresence(raw: unknown) {
     const presence = parseLanyardPresence(raw, { kv: options.kv });
     if (!presence) return false;
-    set({ presence, updatedAt: deps.now(), failed: false, notTracked: false });
+    set({ presence, updatedAt: deps.now(), failed: false, notTracked: false, detail: null });
     return true;
+  }
+
+  const nothingToShow = () => state.presence === null && !state.notTracked;
+
+  function describeFailure(): string {
+    const browser = restIssue ?? "no presence arrived over the socket from api.lanyard.rest";
+    return serverIssue ? `${browser}; the dashboard's server could not get it either (${serverIssue})` : browser;
+  }
+
+  /**
+   * The panel is still empty. Ask this site's server once before admitting
+   * failure (when a fallback exists); afterwards report the real reason.
+   */
+  function giveUp() {
+    if (!running || !nothingToShow() || fallbackInflight) return;
+    if (options.fallbackUrl && !fallbackTried) {
+      void fetchFallback();
+      return;
+    }
+    set({ failed: true, detail: describeFailure() });
   }
 
   function stopHeartbeat() {
@@ -200,13 +238,9 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
     created.onclose = () => {
       if (socket !== created) return;
       detachSocket();
-      markFailedIfNothingToShow();
+      if (restDone) giveUp();
       scheduleReconnect();
     };
-  }
-
-  function markFailedIfNothingToShow() {
-    if (state.presence === null && !state.notTracked && restDone) set({ failed: true });
   }
 
   async function fetchRest() {
@@ -214,23 +248,77 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
     clearTimeout(restTimer);
     const controller = new AbortController();
     restController = controller;
-    restTimer = setTimeout(() => controller.abort(), REST_TIMEOUT_MS);
+    let timedOut = false;
+    restTimer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, REST_TIMEOUT_MS);
+    restIssue = null;
     try {
       const response = await deps.fetch(lanyardRestUrl(userId), { signal: controller.signal, cache: "no-store" });
       const body = asRecord(await response.json().catch(() => null));
       if (!running || controller.signal.aborted) return;
       if (response.ok && body?.success === true) {
         // The socket may have delivered fresher data while this was in flight.
-        if (state.presence === null) acceptPresence(body.data);
+        if (state.presence === null && !acceptPresence(body.data)) {
+          restIssue = `api.lanyard.rest sent a presence this site cannot read (${presenceProblem(body.data) ?? "unreadable"})`;
+        }
       } else if (asRecord(body?.error)?.code === "user_not_monitored") {
-        set({ notTracked: true, failed: false });
+        set({ notTracked: true, failed: false, detail: null });
+      } else {
+        restIssue = `api.lanyard.rest answered HTTP ${response.status}`;
       }
     } catch {
-      // Treated as unavailable below if the socket cannot supply data either.
+      // A deliberate abort (restart or stop) is not a failure; a timeout or network error is.
+      if (running && restController === controller) {
+        restIssue = timedOut ? "api.lanyard.rest did not answer in time" : "the browser could not reach api.lanyard.rest";
+      }
     } finally {
       if (restController === controller) clearTimeout(restTimer);
       restDone = true;
-      if (running && socket === null) markFailedIfNothingToShow();
+      if (running && nothingToShow()) {
+        // With the socket still connecting, wait for it; but a failed REST call is reason enough to ask the server.
+        if (socket === null) giveUp();
+        else if (restIssue !== null && options.fallbackUrl && !fallbackTried) giveUp();
+      }
+    }
+  }
+
+  /** Our own server's view of the presence: slower to update, but it does not depend on the visitor's network. */
+  async function fetchFallback() {
+    const url = options.fallbackUrl;
+    if (!url || !running || fallbackInflight) return;
+    fallbackInflight = true;
+    fallbackController?.abort();
+    const controller = new AbortController();
+    fallbackController = controller;
+    const timer = setTimeout(() => controller.abort(), REST_TIMEOUT_MS);
+    try {
+      const response = await deps.fetch(url, { signal: controller.signal, cache: "no-store" });
+      const body = asRecord(await response.json().catch(() => null));
+      if (!running || controller.signal.aborted) return;
+      const data = asRecord(body?.data);
+      if (body?.status === "ok" && data?.tracked === false) {
+        serverIssue = null;
+        if (state.presence === null) set({ notTracked: true, failed: false, detail: null });
+      } else if (body?.status === "ok" && isPresenceView(data?.presence)) {
+        serverIssue = null;
+        // The live socket is fresher than any snapshot; only fill in while it is not delivering.
+        if (state.connection !== "open") set({ presence: data.presence, updatedAt: deps.now(), failed: false, notTracked: false, detail: null });
+      } else if (body?.status === "unavailable") {
+        serverIssue = typeof body.detail === "string" ? body.detail.slice(0, 160) : "unavailable";
+      } else if (body?.status === "missing-config") {
+        serverIssue = "DISCORD_USER_ID is not set on the server";
+      } else {
+        serverIssue = `the dashboard's server sent an unexpected answer (HTTP ${response.status})`;
+      }
+    } catch {
+      if (running && fallbackController === controller) serverIssue = "the dashboard's own server did not answer";
+    } finally {
+      clearTimeout(timer);
+      fallbackInflight = false;
+      fallbackTried = true;
+      giveUp();
     }
   }
 
@@ -254,6 +342,7 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
       attempt = 0;
       connect();
       void fetchRest();
+      if (options.fallbackUrl) void fetchFallback();
     }
   }
 
@@ -267,19 +356,29 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
       if (running) return;
       running = true;
       restDone = false;
+      restIssue = serverIssue = null;
+      fallbackTried = false;
       attempt = 0;
       state = INITIAL_LANYARD_STATE;
       removeVisibility = deps.onVisibilityChange(onVisibility);
       settleTimer = setTimeout(() => {
         settleTimer = undefined;
-        if (state.presence === null && !state.notTracked) set({ failed: true });
+        giveUp();
       }, SETTLE_TIMEOUT_MS);
+      if (options.fallbackUrl) {
+        fallbackPoll = setInterval(() => {
+          if (state.connection !== "open" && !deps.isHidden()) void fetchFallback();
+        }, FALLBACK_POLL_MS);
+      }
       connect();
       void fetchRest();
     },
     stop() {
       running = false;
       restController?.abort();
+      fallbackController?.abort();
+      if (fallbackPoll !== undefined) clearInterval(fallbackPoll);
+      fallbackPoll = undefined;
       for (const timer of [reconnectTimer, settleTimer, hiddenTimer, restTimer]) if (timer !== undefined) clearTimeout(timer);
       reconnectTimer = settleTimer = hiddenTimer = restTimer = undefined;
       removeVisibility?.();
@@ -294,6 +393,7 @@ export const INITIAL_LANYARD_STATE: LanyardState = {
   connection: "connecting",
   failed: false,
   notTracked: false,
+  detail: null,
   updatedAt: null,
 };
 
@@ -310,7 +410,7 @@ const shared = new Map<string, { handle: LanyardHandle }>();
  * The store is started by the first retain() and stopped by the last release().
  */
 export function getLanyardHandle(userId: string, options: LanyardOptions = {}): LanyardHandle {
-  const key = `${userId}|${options.kv?.bio ?? ""}|${options.kv?.banner ?? ""}`;
+  const key = `${userId}|${options.kv?.bio ?? ""}|${options.kv?.banner ?? ""}|${options.fallbackUrl ?? ""}`;
   const existing = shared.get(key);
   if (existing) return existing.handle;
 

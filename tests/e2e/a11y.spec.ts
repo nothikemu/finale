@@ -23,6 +23,8 @@ test("semantic structure: landmarks, headings, lists, time and anchors", async (
   await mockLanyard(page);
   await page.goto("/");
   await page.locator(".panel--listening .track").first().waitFor();
+  await page.locator("ul.projects > li").first().waitFor();
+  await page.locator(".calendar__svg").waitFor();
   expect(await page.locator("main").count()).toBe(1);
   expect(await page.locator("h1").count()).toBe(1);
   expect(await page.locator("section[aria-labelledby]").count()).toBe(6);

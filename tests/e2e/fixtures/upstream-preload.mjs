@@ -10,6 +10,13 @@
  * FIXTURE_MODE=badtoken      GitHub's API answers 401 "Bad credentials" to any request that
  *                            carries a token (as the real API does), but serves anonymous ones
  * FIXTURE_MODE=ok-no-public  healthy, except github.com's public contributions page is 404
+ *
+ * LANYARD_FIXTURE decides what the SERVER sees at api.lanyard.rest (the browser's view is stubbed per test):
+ *   unset / blocked  the request fails like a blocked network, so the server has nothing to offer
+ *   ok               the test account is tracked and has a presence
+ *   untracked        Lanyard answers 404 user_not_monitored
+ *   garbage          Lanyard answers 200 with a payload that is not a presence
+ * (FIXTURE_MODE=down and ratelimit still win, as for every other upstream.)
  */
 
 const realFetch = globalThis.fetch;
@@ -134,10 +141,23 @@ globalThis.fetch = async (input, init) => {
   if (isGithub && mode === "badtoken" && new Headers(init?.headers).get("authorization")) return json({ message: "Bad credentials" }, 401);
 
   if (isLanyard) {
+    const lanyard = process.env.LANYARD_FIXTURE || "blocked";
+    if (lanyard === "blocked") throw new TypeError("fetch failed");
     const id = url.pathname.split("/").pop();
-    return id === "100000000000000001"
-      ? json({ success: true, data: { discord_status: "online", kv: { bio: "fixture bio" }, discord_user: { id, username: "fixture_user" }, activities: [] } })
-      : json({ success: false, error: { code: "user_not_monitored", message: "User is not being monitored by Lanyard" } }, 404);
+    if (lanyard === "garbage") return json({ success: true, data: { discord_status: "online" } });
+    if (lanyard === "untracked" || id !== "100000000000000001") {
+      return json({ success: false, error: { code: "user_not_monitored", message: "User is not being monitored by Lanyard" } }, 404);
+    }
+    return json({
+      success: true,
+      data: {
+        discord_status: "idle",
+        active_on_discord_desktop: true,
+        kv: { bio: "bio served by the dashboard's server", secret: "kv-secret-must-not-render" },
+        discord_user: { id, username: "snapshot_user", global_name: "Snapshot User", avatar: null, discriminator: "0", public_flags: 0 },
+        activities: [{ id: "custom", type: 4, name: "Custom Status", state: "read by the server" }],
+      },
+    });
   }
   if (isGithubWeb) {
     if (mode === "ok-no-public" || url.pathname !== "/users/nothikemu/contributions") return new Response("Not Found", { status: 404 });

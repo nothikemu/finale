@@ -74,6 +74,8 @@ export const site = {
 
 /** Server-side cache lifetimes in milliseconds. */
 export const cacheTtl = {
+  /** Discord presence snapshot for browsers that cannot reach Lanyard themselves. */
+  presence: 10_000,
   listens: 60_000,
   nowPlaying: 20_000,
   listenbrainzUsername: 6 * 60 * 60_000,

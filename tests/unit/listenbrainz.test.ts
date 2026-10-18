@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { normalizeListens, normalizePlayingNow } from "@/data/listenbrainz";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { loadListening, normalizeListens, normalizePlayingNow } from "@/data/listenbrainz";
+import { clearCache } from "@/lib/server/cache";
 
 const MBID = "0a1b2c3d-1111-2222-3333-444455556666";
 
@@ -111,5 +112,99 @@ describe("normalizeListens null handling", () => {
     });
     expect(listens).toHaveLength(1);
     expect(listens[0]).toMatchObject({ title: "T", album: null, spotifyUrl: null });
+  });
+});
+
+describe("loadListening: which account is read", () => {
+  const TOKEN = "11111111-2222-3333-4444-555555555555"; // made up for this test
+  const requests: { url: string; authorization: string | null }[] = [];
+
+  function stubListenBrainz(userName = "hkmu") {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL, init: RequestInit = {}) => {
+        const url = new URL(String(input));
+        requests.push({ url: url.href, authorization: new Headers(init.headers).get("authorization") });
+        const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
+        if (url.pathname === "/1/validate-token") return json({ code: 200, message: "Token valid.", valid: true, user_name: userName });
+        if (url.pathname.endsWith("/playing-now")) return json({ payload: { count: 0, playing_now: true, listens: [] } });
+        return json({ payload: { count: 1, listens: [listen({ track_name: "Song" }, spotifyInfo)] } });
+      }),
+    );
+  }
+
+  beforeEach(() => {
+    clearCache();
+    requests.length = 0;
+    delete process.env.LISTENBRAINZ_USERNAME;
+    delete process.env.LISTENBRAINZ_TOKEN;
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    delete process.env.LISTENBRAINZ_USERNAME;
+    delete process.env.LISTENBRAINZ_TOKEN;
+  });
+
+  it("reads a configured username directly, with no token and no authorization header", async () => {
+    process.env.LISTENBRAINZ_USERNAME = "hkmu";
+    stubListenBrainz();
+    const result = await loadListening();
+    expect(result).toMatchObject({ status: "ok", data: { listens: [{ title: "Song" }] } });
+    expect(requests.map((r) => new URL(r.url).pathname)).toEqual(expect.arrayContaining(["/1/user/hkmu/listens", "/1/user/hkmu/playing-now"]));
+    expect(requests.some((r) => r.url.includes("validate-token"))).toBe(false);
+    expect(requests.every((r) => r.authorization === null)).toBe(true);
+  });
+
+  it("prefers the username over a token, and never sends the token", async () => {
+    process.env.LISTENBRAINZ_USERNAME = "hkmu";
+    process.env.LISTENBRAINZ_TOKEN = TOKEN;
+    stubListenBrainz();
+    await loadListening();
+    expect(requests.some((r) => r.url.includes("validate-token"))).toBe(false);
+    expect(JSON.stringify(requests)).not.toContain(TOKEN);
+  });
+
+  it("with only a token, asks ListenBrainz whose it is once, then reads that account's public listens", async () => {
+    process.env.LISTENBRAINZ_TOKEN = TOKEN;
+    stubListenBrainz("tokenowner");
+    expect((await loadListening()).status).toBe("ok");
+    const validate = requests.filter((r) => r.url.includes("validate-token"));
+    expect(validate).toHaveLength(1);
+    expect(validate[0]!.authorization).toBe(`Token ${TOKEN}`);
+    const reads = requests.filter((r) => !r.url.includes("validate-token"));
+    expect(reads.length).toBeGreaterThan(0);
+    expect(reads.every((r) => r.authorization === null && r.url.includes("/user/tokenowner/"))).toBe(true);
+    expect(JSON.stringify(await loadListening())).not.toContain(TOKEN);
+  });
+
+  it("accepts any Unicode username and encodes it into the path", async () => {
+    process.env.LISTENBRAINZ_USERNAME = "ひかる_01";
+    stubListenBrainz();
+    expect((await loadListening()).status).toBe("ok");
+    expect(requests.some((r) => r.url.includes(`/user/${encodeURIComponent("ひかる_01")}/listens`))).toBe(true);
+  });
+
+  it("refuses a username that could change the request path", async () => {
+    stubListenBrainz();
+    for (const bad of ["a/b", "a?b", "a#b", "a%2fb", "a\nb", "a\\b"]) {
+      clearCache();
+      process.env.LISTENBRAINZ_USERNAME = bad;
+      expect(await loadListening()).toMatchObject({ status: "missing-config" });
+    }
+    expect(requests).toHaveLength(0);
+  });
+
+  it("is unconfigured, not broken, with neither a username nor a token", async () => {
+    stubListenBrainz();
+    expect(await loadListening()).toEqual({ status: "missing-config", missing: ["LISTENBRAINZ_USERNAME", "LISTENBRAINZ_TOKEN"] });
+    expect(requests).toHaveLength(0);
+  });
+
+  it("reports a rejected token as an authentication problem", async () => {
+    process.env.LISTENBRAINZ_TOKEN = TOKEN;
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ code: 200, message: "Token invalid.", valid: false }), { status: 200 })));
+    expect(await loadListening()).toMatchObject({ status: "unavailable", reason: "auth" });
   });
 });

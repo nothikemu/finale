@@ -158,9 +158,10 @@ if (!/^\d{15,25}$/.test(discordId)) {
         ? "banner/bio will be read from KV keys 'banner' / 'bio'"
         : "no 'bio' or 'banner' KV key yet; set them with the Lanyard bot (see README) to show a bio and banner",
     );
-    info("the browser also needs to reach wss://api.lanyard.rest/socket for live updates");
+    info("this machine can reach Lanyard, so the panel always has the dashboard's server as a second route");
+    info("live updates also need the visitor's browser to reach wss://api.lanyard.rest/socket; without it the panel shows data that refreshes every 30 s and is labelled 'stale'");
   } else if (res.json?.error?.code === "user_not_monitored") {
-    fail("Lanyard does not track this Discord account, so the panel will say 'presence not tracked'", "join https://discord.gg/lanyard with this exact Discord account, then wait a minute");
+    fail("Lanyard does not track this Discord account, so the panel will say 'presence not tracked'", "join https://discord.gg/UrXF2cfJ7F (the invite in Lanyard's README) with this exact Discord account, then wait a minute");
   } else fail(`Lanyard answered HTTP ${res.status}`, "try again shortly; if it persists, check https://status.lanyard.rest or Lanyard's Discord");
 }
 

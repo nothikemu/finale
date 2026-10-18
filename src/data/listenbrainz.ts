@@ -10,7 +10,8 @@ import { fetchUpstreamJson, UpstreamError } from "@/lib/server/http";
 
 const API = "https://api.listenbrainz.org/1";
 const HISTORY_COUNT = 50;
-const USERNAME = /^[A-Za-z0-9._@+ -]{1,128}$/;
+/** MusicBrainz usernames may be any Unicode text; only control characters and URL-structure characters are refused. */
+const USERNAME = /^[^\p{C}/\\?#%]{1,128}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**

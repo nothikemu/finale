@@ -19,7 +19,7 @@ function doctor(options: { env?: Record<string, string>; envFile?: string; mode?
   const result = spawnSync(process.execPath, ["--import", preload, path.join(root, "scripts/doctor.mjs")], {
     cwd,
     encoding: "utf8",
-    env: { PATH: process.env.PATH ?? "", NODE_ENV: "production", FIXTURE_MODE: options.mode ?? "ok", NO_COLOR: "1", ...options.env },
+    env: { PATH: process.env.PATH ?? "", NODE_ENV: "production", FIXTURE_MODE: options.mode ?? "ok", LANYARD_FIXTURE: "ok", NO_COLOR: "1", ...options.env },
     timeout: 60_000,
   });
   return { status: result.status, out: `${result.stdout}${result.stderr}` };
@@ -72,7 +72,7 @@ test("a rejected GitHub token is diagnosed, and the fallback is reported as work
 test("an untracked Discord account is explained", async () => {
   const { status, out } = doctor({ envFile: CONFIGURED.replace(TEST_DISCORD_ID, "200000000000000002") });
   expect(out).toMatch(/FAIL\s+Lanyard does not track this Discord account/);
-  expect(out).toContain("https://discord.gg/lanyard");
+  expect(out).toContain("https://discord.gg/UrXF2cfJ7F");
   expect(status).toBe(1);
 });
 

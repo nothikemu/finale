@@ -156,6 +156,7 @@ test.describe("shared typography and structure", () => {
 
     // every other state message, healthy and unconfigured
     await page.goto(`${URLS.unconfigured}/`);
+    await page.waitForFunction(() => !document.querySelector(".panel .skeleton, .panel .calendar-skeleton"));
     expect(await page.locator(".dashboard .state__hint").count()).toBe(0);
     await expect(page.locator(".dashboard")).not.toContainText(/GITHUB_TOKEN|LISTENBRAINZ|DISCORD_USER_ID/);
   });
