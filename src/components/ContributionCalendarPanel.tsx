@@ -27,7 +27,7 @@ async function CalendarContent() {
   const result = await loadContributions(site.githubUsername);
 
   if (result.status === "missing-config") {
-    return <StateMessage hint={devHint(`set ${result.missing.join(", ")} (see README)`)}>github activity unavailable</StateMessage>;
+    return <StateMessage hint={devHint(`set ${result.missing.join(", ")} (see README)`)}>github activity not configured</StateMessage>;
   }
   if (result.status === "unavailable") {
     return <StateMessage>github activity unavailable</StateMessage>;

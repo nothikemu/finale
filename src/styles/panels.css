@@ -560,6 +560,7 @@
 }
 
 .discord__body {
+  margin: 0; /* this panel pads its own body, so no bleed is needed */
   padding: 14px var(--panel-pad) 20px;
 }
 
@@ -602,7 +603,7 @@
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr);
   gap: 12px;
-  padding: 12px;
+  padding: 12px 14px; /* matches .now-playing */
   border: 1px solid var(--border);
   background: var(--fill-subtle);
 }
@@ -617,7 +618,7 @@
   font-size: var(--fs-meta);
   letter-spacing: var(--tracking-heading);
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-secondary); /* matches .now-playing__label */
 }
 
 .activity__title {

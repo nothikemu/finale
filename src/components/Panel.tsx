@@ -64,5 +64,4 @@ export function SkeletonRows({ count, className = "" }: { count: number; classNa
   );
 }
 
-/** Developer-facing hint that only appears outside production, so visitors never see env names. */
-export const devHint = (text: string): string | undefined => (process.env.NODE_ENV === "production" ? undefined : text);
+export { devHint } from "@/lib/dev-hint";

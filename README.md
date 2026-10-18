@@ -18,7 +18,7 @@ npm run dev                  # http://localhost:3000
 
 Requires Node 20.9+. Production: `npm run build && npm start`.
 
-With nothing configured the site still runs: each integration shows an understated "not configured" state (and, in development only, the variable to set). Nothing is ever faked.
+With nothing configured the site still runs: each integration shows an understated "not configured" (or, if it cannot be reached, "unavailable") state, and in development only, the variable to set. Nothing is ever faked.
 
 ## Configuration
 
@@ -115,23 +115,23 @@ npm test              # unit tests (Vitest)
 npm run test:e2e      # builds, starts three servers, runs Playwright
 ```
 
-The e2e suite needs no network or credentials. It starts the production build three times: healthy upstreams, nothing configured, and a total upstream outage. Upstream GitHub/ListenBrainz responses come from `tests/e2e/fixtures/upstream-preload.mjs`, a **test-only** `NODE_OPTIONS=--import` preload that is never part of the app; Lanyard (REST and WebSocket) is mocked inside the browser. Fake secrets are used so the suite can prove they never reach HTML, scripts, API responses or storage.
+The e2e suite needs no credentials or live services (run `npx playwright install chromium` once if Playwright has no browser yet). It starts the production build three times: healthy upstreams, nothing configured, and a total upstream outage. Upstream GitHub/ListenBrainz responses come from `tests/e2e/fixtures/upstream-preload.mjs`, a **test-only** `NODE_OPTIONS=--import` preload that is never part of the app; Lanyard (REST and WebSocket) is mocked inside the browser. Fake secrets are used so the suite can prove they never reach HTML, scripts, API responses or storage.
 
 ## Verification
 
-Run in the development sandbox on 2026-10-18 (Chromium via Playwright, Node 22):
+Results at release (Chromium via Playwright, Node 22):
 
 | Check | Result |
 | --- | --- |
 | Unit tests | 63 passed |
-| End-to-end tests | 90 passed (layout, content, interaction, states, security, accessibility) |
+| End-to-end tests | 106 passed (layout, content, interaction, states, security, accessibility, cross-state UI consistency) |
 | ESLint, `tsc --noEmit`, production `next build` | clean |
 | `npm audit --omit=dev` | 0 vulnerabilities (dev-only advisories exist in test tooling) |
 | axe-core (WCAG 2.0-2.2 A/AA + best practices), 1440 px and 390 px | 0 violations |
 
 The acceptance checklist, mapped to tests:
 
-- **Six panels in the wireframe's hierarchy; four across the top; calendar about 2/3, projects about 1/3:** measured at 1440 × 900: container 1376 px, 32 px margins, 16 px gaps, rows 390/360 px, panel widths 382/282/332/332 and 907/453 px. Breakpoints at 1200, 1199, 768 and 767 asserted. No horizontal page scroll at 14 widths from 320 to 1920 px.
+- **Six panels in the design's hierarchy; four across the top; calendar about 2/3, projects about 1/3:** measured at 1440 × 900: container 1376 px, 32 px margins, 16 px gaps, rows 390/360 px, panel widths 382/282/332/332 and 907/453 px. Breakpoints at 1200, 1199, 768 and 767 asserted. No horizontal page scroll at 14 widths from 320 to 1920 px.
 - **No rounded corners:** every element and `::before`/`::after` has a computed `border-radius` of 0.
 - **OLED black and quartz-only accents:** asserted on computed colours; font actually loaded (both weights, `document.fonts`).
 - **Socials, personal copy, three word effects:** exact hrefs/handles; about text asserted verbatim; each effect animates on hover without layout shift and is inert under reduced motion.
@@ -149,22 +149,22 @@ The acceptance checklist, mapped to tests:
 | Mobile, no throttling | 100 | 100 | 0.5 s | 0 | 0 ms |
 | Mobile, simulated slow 4G + 4x CPU (Lighthouse default) | 91 | 100 | **3.4 s** | 0.05 | 120 ms |
 
-Honest reading: the simulated-mobile LCP misses the 2.5 s target. On a phone-sized viewport the first screen is dominated by the Discord panel, which is deliberately rendered client-side from Lanyard (as specified), so its content appears after hydration, and Lighthouse's 4x CPU throttle makes that slow. Our own client code is about 8 KB gzipped; the rest is React/Next. If you want a faster mobile LCP, fetch the first presence on the server and seed the client store (a trade-off against the "read Lanyard directly" requirement). CLS with a rich mocked presence payload on a 390 px viewport was 0.035 (below 0.1); real devices were not measured. A Lighthouse "errors in console" note is the sandbox blocking `api.lanyard.rest`.
+Honest reading: the simulated-mobile LCP misses the 2.5 s target. On a phone-sized viewport the first screen is dominated by the Discord panel, which is deliberately rendered client-side from Lanyard (as specified), so its content appears after hydration, and Lighthouse's 4x CPU throttle makes that slow. Our own client code is about 8 KB gzipped; the rest is React/Next. If you want a faster mobile LCP, fetch the first presence on the server and seed the client store (a trade-off against the "read Lanyard directly" requirement). CLS with a rich mocked presence payload on a 390 px viewport was 0.035 (below 0.1); real devices were not measured. In the measured run the Lanyard host was unreachable, which Lighthouse reports as a console error.
 
-### What could not be verified here
+### Live integrations
 
-The sandbox blocks outbound access to Discord/Lanyard, GitHub's API and ListenBrainz, so **no live integration was exercised against the real services**. Their response shapes are implemented from the public documentation and covered by fixtures and unit tests; please check each panel once with real credentials (see below).
+The automated tests use fixtures for GitHub and ListenBrainz and a mocked Lanyard, so **no automated run has exercised the real services**. Their response shapes are implemented from the public documentation and covered by fixtures and unit tests; after configuring, open each panel once with real credentials.
 
-## Still needed from the owner
+## Setup checklist
 
 1. `DISCORD_USER_ID`, and joining the Lanyard server so the account is tracked.
 2. `LISTENBRAINZ_TOKEN` (reset first, per the note above) in the deployment's secret manager, and Spotify connected to ListenBrainz.
 3. `GITHUB_TOKEN`: fine-grained, public repositories read-only.
 4. To show a banner and bio: set the `banner` and `bio` keys in Lanyard KV (see the Discord section), or use the `PROFILE_BANNER_URL` / `PROFILE_BIO` fallbacks.
 
-## Notes and small deviations from the brief
+## Design notes
 
-- The wireframe lists two social links; the written brief specifies three (Twitter/X, GitHub, guns.lol), which is what ships. The wireframe's "LASTBRAINZ" is treated as ListenBrainz.
+- Three social links ship: Twitter/X, GitHub and guns.lol.
 - The guns.lol icon is a generic square link glyph; no reliable official glyph was available.
 - Rows in the socials panel stack label above handle so all three look identical at the 282 px reference width.
 - Scroll regions fade out over their last 20 px instead of showing a scroll icon.

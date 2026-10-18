@@ -4,6 +4,7 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { getLanyardHandle, INITIAL_LANYARD_STATE } from "@/data/discord/lanyard-store";
 import { resolveBanner, resolveBio } from "@/data/discord/profile";
 import type { ActivityView, DiscordPresence as Presence, DiscordStatus, SpotifyActivity } from "@/data/discord/types";
+import { devHint } from "@/lib/dev-hint";
 import { formatClock } from "@/lib/format";
 import { useNow } from "@/lib/use-now";
 import { Artwork } from "./Artwork";
@@ -61,9 +62,9 @@ export function DiscordPresence({ userId, bannerUrl, fallbackBio, kv }: Props) {
       </div>
 
       {state.notTracked ? (
-        <Message text="presence not tracked" hint="this account is not monitored by lanyard yet" />
+        <Message text="presence not tracked" hint={devHint("this account is not monitored by lanyard yet (see README)")} />
       ) : presence === null ? (
-        state.failed ? <Message text="presence unavailable" hint="could not reach lanyard" /> : <PresenceSkeleton />
+        state.failed ? <Message text="presence unavailable" hint={devHint("could not reach lanyard")} /> : <PresenceSkeleton />
       ) : (
         <>
           <Identity presence={presence} />
@@ -97,11 +98,11 @@ function ConnectionTag({ connection, hasPresence }: { connection: string; hasPre
   );
 }
 
-function Message({ text, hint }: { text: string; hint: string }) {
+function Message({ text, hint }: { text: string; hint?: string }) {
   return (
     <div className="discord__setup state" role="status">
       <p className="state__text">{text}</p>
-      <p className="state__hint">{hint}</p>
+      {hint ? <p className="state__hint">{hint}</p> : null}
     </div>
   );
 }

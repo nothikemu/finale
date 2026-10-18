@@ -11,7 +11,7 @@ test.describe("missing configuration (nothing set)", () => {
 
     await expect(panel(page, "discord")).toContainText("presence not configured");
     await expect(panel(page, "listening")).toContainText("listening not configured");
-    await expect(panel(page, "activity")).toContainText("github activity unavailable");
+    await expect(panel(page, "activity")).toContainText("github activity not configured");
     // projects need no credentials, so they still load
     await expect(panel(page, "projects").locator(".project").first()).toBeVisible();
     // static panels are unaffected

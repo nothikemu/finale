@@ -71,6 +71,11 @@
   .panel--projects {
     height: 400px;
   }
+
+  /* a constant footprint whether the calendar is loading, loaded or unavailable */
+  .dashboard .panel--activity {
+    min-height: 280px;
+  }
 }
 
 @media (max-width: 767.98px) {
@@ -79,8 +84,13 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .panel--discord {
+  /* .dashboard raises specificity above the base `.panel { min-height: 0 }` in panel.css */
+  .dashboard .panel--discord {
     min-height: 360px;
+  }
+
+  .dashboard .panel--activity {
+    min-height: 280px;
   }
 
   .panel--listening {

@@ -35,9 +35,10 @@ const config: NextConfig = {
     return [
       { source: "/:path*", headers: securityHeaders },
       {
-        // Font filenames are versioned by the build script, so they can be immutable.
+        // Filenames are not content-hashed (scripts/build-fonts.py writes fixed names),
+        // so cache for a week and revalidate in the background rather than "immutable".
         source: "/fonts/:file*",
-        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+        headers: [{ key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=86400" }],
       },
     ];
   },
