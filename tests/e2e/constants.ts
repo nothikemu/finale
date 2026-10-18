@@ -1,7 +1,7 @@
 /** Deliberately recognisable fake secrets, so tests can prove they never leak. */
 export const FAKE_SECRETS = {
-  GITHUB_TOKEN: "ghp_FAKE_SECRET_github_5678",
-  LISTENBRAINZ_TOKEN: "lbtoken-FAKE-SECRET-1234",
+  GITHUB_TOKEN: "fake-github-token-for-e2e-0001",
+  LISTENBRAINZ_TOKEN: "fake-listenbrainz-token-for-e2e-0002",
 } as const;
 
 /** Not the owner's ID: a made-up snowflake used only by tests. */
