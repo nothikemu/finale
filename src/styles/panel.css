@@ -250,3 +250,29 @@
 .tooltip--below {
   transform: translate(-50%, 0);
 }
+
+/* ---- notice pages (404, errors) ------------------------------------------ */
+
+.notice {
+  width: calc(100% - 2 * var(--page-margin));
+  max-width: 420px;
+  margin-inline: auto;
+}
+
+.notice .state {
+  min-height: 96px;
+}
+
+.notice__link {
+  padding: 0;
+  font: inherit;
+  color: var(--text-primary);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--border-active);
+  cursor: pointer;
+}
+
+.notice__link:hover {
+  border-bottom-color: var(--quartz);
+}

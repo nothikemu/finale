@@ -113,11 +113,58 @@ Common causes:
 
 ## Deployment
 
-Any Node 20.9+ host works (`npm run build && npm start`), including Vercel, Netlify and Docker. Cloudflare Pages/Workers are not supported as they are (the app uses Node APIs and an in-process cache). Set the environment variables in the host's secret manager; **`.env.local` is for your own machine and is not uploaded by most hosts.** After deploying, open `/status` on the deployed site (set `SHOW_DIAGNOSTICS=1` in the host's variables, or `showDiagnostics: true` in `src/config/identity.ts`, temporarily) if a panel is empty. Variables added in a host's dashboard apply only to *new* deployments, and only in the environment (Production, Preview) they were added to.
+The site is a Node.js app (Next.js 16, Node 20.9+). It needs a host that runs Node, not a static file host. **Vercel is the easiest**; any Node host or Docker also works.
+
+**What you set where.** Public identifiers can live in `src/config/identity.ts` (they travel with the project); credentials are environment variables only, set in the *host's* settings. `.env.local` is for your own machine and is never uploaded by git or by hosts.
+
+| Setting | Where | Needed? |
+| --- | --- | --- |
+| `DISCORD_USER_ID` | host variable, or `discordUserId` in `identity.ts` | Yes, for the Discord panel |
+| `LISTENBRAINZ_USERNAME` | host variable, or `listenbrainzUsername` in `identity.ts` | Yes, for recently played (a token is optional) |
+| `GITHUB_TOKEN` | host variable **only** | **Strongly recommended.** Without it GitHub allows 60 anonymous requests an hour per IP, and a host's shared IPs use them up, so projects can show "rate-limited". A read-only fine-grained token (public repositories) removes the problem |
+| `SHOW_DIAGNOSTICS` | host variable | Leave **unset** on a public site (visitors never see hints either way). Set `1` temporarily to open `/status` |
+| `SITE_URL` | host variable | Optional. The address used in link previews; detected automatically on Vercel and from the request elsewhere |
+
+### Vercel
+
+**From GitHub (best, because pushes redeploy):**
+
+1. Put the project in a GitHub repository and make sure the branch you want live is the one Vercel builds (Vercel deploys the *production branch*, usually `main`).
+2. <https://vercel.com/new> → import the repository. The framework is detected; leave the build settings alone.
+3. Under *Environment Variables* add `DISCORD_USER_ID`, `LISTENBRAINZ_USERNAME` and `GITHUB_TOKEN` (or fill in `identity.ts` before pushing and add only the token). Apply them to **Production**.
+4. Deploy. Open the address Vercel gives you and check each panel. Add a custom domain under *Settings → Domains* if you have one.
+
+**From this folder, no GitHub needed:**
+
+```bash
+npm install
+npx vercel                       # first run: log in, accept the defaults; makes a preview deployment
+npx vercel env add GITHUB_TOKEN production    # paste the token when asked (repeat for the other variables if not in identity.ts)
+npx vercel --prod                # the live deployment
+```
+
+Variables added in Vercel apply only to **new** deployments, so redeploy after changing them.
+
+### Docker or any Node host
+
+```bash
+npm ci && npm run build && npm start            # any host with Node 20.9+; set the variables in its environment
+docker build -t dashboard .                      # or a container; the image is small (Next standalone output)
+docker run -p 3000:3000 -e DISCORD_USER_ID=... -e LISTENBRAINZ_USERNAME=... -e GITHUB_TOKEN=... dashboard
+```
+
+Put a TLS-terminating proxy (Caddy, nginx, your platform's load balancer) in front; HSTS is sent in production. Netlify works with its Next.js runtime. Cloudflare Pages/Workers are not supported as they are (the app uses Node APIs and an in-process cache).
+
+### After you deploy
+
+- Open the site and check each panel. If one is wrong, set `SHOW_DIAGNOSTICS=1`, redeploy, open `/status`, then remove the variable again.
+- Link previews (Discord, X, iMessage) use the generated card in `src/app/opengraph-image.png`. Regenerate it with `node scripts/build-social-images.mjs` after changing the title.
+- `robots.txt` lets search engines index the page and keeps `/api/*` and `/status` out. Those routes also send `X-Robots-Tag: noindex`.
+- **Tokens:** keep them in the host's settings only. Treat any token that was ever pasted into a chat, an issue or a commit as exposed and replace it.
 
 Upstream results are cached **in process** (15 min projects, 30 min calendar, 60 s listens, 20 s now-playing) with request de-duplication, `Retry-After` cool-downs, and last-known-good data served (and labelled "showing last known data") when a refresh fails. On serverless platforms each instance has its own cache; the API routes also send CDN `Cache-Control` headers, so edge caching absorbs most traffic.
 
-Production responses carry a locked-down Content-Security-Policy (see `next.config.ts`). If you embed new third-party hosts, extend it there.
+Production responses carry a locked-down Content-Security-Policy, HSTS, and the other security headers (see `next.config.ts`). If you embed new third-party hosts, extend the policy there.
 
 ## Design system
 

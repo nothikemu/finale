@@ -193,9 +193,12 @@ test.describe("glass material", () => {
   test("uses one backdrop blur per panel where supported, and no nested blur", async ({ page }) => {
     await mockLanyard(page);
     await page.goto("/");
+    // Measure a settled page: the Discord panel swaps its skeleton for the live presence once it hydrates, and
+    // a node removed between the query and the style read reports an empty style, which is not a blur.
+    await expect(panel(page, "discord").locator(".discord__name")).toBeVisible();
     const blurred = await page.locator(".dashboard .panel").evaluateAll((els) => els.map((el) => getComputedStyle(el).backdropFilter));
     for (const filter of blurred) expect(filter).toMatch(/blur\((1[2-6])px\)/);
-    const nested = await page.locator(".panel *").evaluateAll((els) => els.filter((el) => getComputedStyle(el).backdropFilter !== "none").length);
+    const nested = await page.locator(".panel *").evaluateAll((els) => els.filter((el) => el.isConnected && getComputedStyle(el).backdropFilter !== "none").length);
     expect(nested).toBe(0);
   });
 
