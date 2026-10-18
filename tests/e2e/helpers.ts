@@ -91,13 +91,18 @@ export async function mockLanyard(page: Page, data: unknown = presenceFixture(),
 
 export const panel = (page: Page, id: string) => page.locator(`.panel--${id}`);
 
-/** Waits for finite animations (the entrance fade) to finish so geometry is measured at rest. */
+/**
+ * Waits for finite animations (the entrance fade) to finish so geometry is measured at rest.
+ * The Discord panel's "still connecting" note is a deliberate 14 s delayed reveal, not an entrance:
+ * waiting for it would stall the page for 14 s and outlast the panel's own 8 s request timeout.
+ */
 export async function settle(page: Page) {
   await page.evaluate(() =>
     Promise.all(
       document
         .getAnimations()
         .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+        .filter((animation) => (animation as CSSAnimation).animationName !== "discord-late")
         .map((animation) => animation.finished.catch(() => undefined)),
     ),
   );

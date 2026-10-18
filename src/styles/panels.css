@@ -664,6 +664,31 @@
   padding: 0 var(--panel-pad);
 }
 
+/*
+ * Shown only if this panel is still a skeleton long after it should have
+ * either loaded or given up (it gives up after 10 s): that means the page's
+ * JavaScript never started. Pure CSS so it works exactly when scripts do not;
+ * !important keeps the delay under prefers-reduced-motion, which would otherwise
+ * zero it. It sits out of flow, so revealing it moves nothing.
+ */
+.discord__late {
+  position: absolute;
+  inset: auto var(--panel-pad) var(--panel-pad);
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+  opacity: 0;
+  visibility: hidden;
+  animation: discord-late 0.001ms linear 14s forwards !important;
+}
+
+@keyframes discord-late {
+  to {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
 /* status squares (never dots) */
 .status-marker {
   --empty: transparent;

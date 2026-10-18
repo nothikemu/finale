@@ -28,6 +28,8 @@ const FALLBACK_URL = "/api/presence";
 /** Lanyard only tracks accounts that joined its Discord server (invite from Lanyard's README). */
 const LANYARD_INVITE = "https://discord.gg/UrXF2cfJ7F";
 
+const subscribeNever = () => () => undefined;
+
 const STATUS_LABEL: Record<DiscordStatus, string> = {
   online: "online",
   idle: "idle",
@@ -48,6 +50,9 @@ export function DiscordPresence({ userId, bannerUrl, fallbackBio, kv, hints }: P
   const handle = useMemo(() => getLanyardHandle(userId, { kv: { bio: kvBioKey, banner: kvBannerKey }, fallbackUrl: FALLBACK_URL }), [userId, kvBioKey, kvBannerKey]);
   useEffect(() => handle.retain(), [handle]);
   const state = useSyncExternalStore(handle.store.subscribe, handle.store.getSnapshot, () => INITIAL_LANYARD_STATE);
+
+  // False in the server HTML and during hydration, true once this component is actually running.
+  const running = useSyncExternalStore(subscribeNever, () => true, () => false);
 
   const { presence } = state;
   // Bio and banner precedence: what Lanyard genuinely returned, then the approved KV key, then the owner's PROFILE_* fallback.
@@ -70,9 +75,9 @@ export function DiscordPresence({ userId, bannerUrl, fallbackBio, kv, hints }: P
       </div>
 
       {state.notTracked ? (
-        <Message text="presence not tracked" hint={hint(`this Discord account is not tracked by Lanyard: join ${LANYARD_INVITE} with it (see README)`, hints)} />
+        <Message text="presence not tracked" hint={hint(`this Discord account is not tracked by Lanyard: join ${LANYARD_INVITE} with that exact account. If you already have, check that DISCORD_USER_ID is your own user ID (see README)`, hints)} />
       ) : presence === null ? (
-        state.failed ? <Message text="presence unavailable" hint={hint(`${state.detail ?? "no presence arrived from Lanyard"} (see README: troubleshooting)`, hints)} /> : <PresenceSkeleton />
+        state.failed ? <Message text="presence unavailable" hint={hint(`${state.detail ?? "no presence arrived from Lanyard"} (see README: troubleshooting)`, hints)} /> : <PresenceSkeleton hints={hints} running={running} />
       ) : (
         <>
           <Identity presence={presence} />
@@ -115,15 +120,23 @@ function Message({ text, hint }: { text: string; hint?: string }) {
   );
 }
 
-function PresenceSkeleton() {
+function PresenceSkeleton({ hints, running }: { hints: boolean; running: boolean }) {
   return (
-    <div className="discord__identity" aria-hidden="true">
-      <span className="skeleton__block discord__avatar-skeleton" />
-      <div className="skeleton discord__lines">
-        <span className="skeleton__block skeleton__line" />
-        <span className="skeleton__block skeleton__line skeleton__line--short" />
+    <>
+      <div className="discord__identity" aria-hidden="true">
+        <span className="skeleton__block discord__avatar-skeleton" />
+        <div className="skeleton discord__lines">
+          <span className="skeleton__block skeleton__line" />
+          <span className="skeleton__block skeleton__line skeleton__line--short" />
+        </div>
       </div>
-    </div>
+      {/* In the server HTML from the start and removed the moment this component runs, so it can only ever be seen if the page's scripts never start. */}
+      {running ? null : (
+        <p className="discord__late" role="status">
+          {hints ? "still connecting: this page's scripts did not start. Open it as http://localhost:PORT, not by an IP address, or check the browser console" : "still connecting…"}
+        </p>
+      )}
+    </>
   );
 }
 

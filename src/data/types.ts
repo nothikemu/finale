@@ -1,6 +1,6 @@
 /** Clearly typed, normalised models shared by adapters and components. */
 
-export type UnavailableReason = "rate-limited" | "auth" | "network" | "upstream" | "invalid-response";
+export type UnavailableReason = "rate-limited" | "auth" | "not-found" | "bad-config" | "network" | "upstream" | "invalid-response";
 
 /** Every data panel renders from one of these states. "Loading" is the Suspense fallback. */
 export type Loaded<T> =
@@ -29,10 +29,14 @@ export interface Listen extends Track {
 }
 
 export interface ListeningData {
+  /** The ListenBrainz account these listens belong to (a public username). */
+  account: string;
   nowPlaying: Track | null;
   listens: Listen[];
   /** True when listens were narrowed to entries ListenBrainz identifies as Spotify. */
   spotifyOnly: boolean;
+  /** How many listens `spotifyOnly` left out (ones ListenBrainz does not mark as coming from Spotify). */
+  omitted: number;
 }
 
 export interface Repository {

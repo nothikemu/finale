@@ -56,7 +56,8 @@ export function ListeningFeed({ initial, serverNow, hints }: Props) {
         if (json.status !== "ok") delay = RETRY_MS;
       } catch {
         if (cancelled || own.signal.aborted) return;
-        setResult((previous) => (previous.status === "ok" ? { ...previous, stale: true } : { status: "unavailable", reason: "network" }));
+        // This browser failing to refresh says nothing new about ListenBrainz: keep what the server last told us.
+        setResult((previous) => (previous.status === "ok" ? { ...previous, stale: true } : previous));
         delay = RETRY_MS;
       }
       if (!cancelled && !document.hidden) timer = setTimeout(refresh, delay);
@@ -84,17 +85,23 @@ export function ListeningFeed({ initial, serverNow, hints }: Props) {
     return <StateMessage hint={hint(describeFailure(result), hints)}>listening history unavailable</StateMessage>;
   }
 
-  const { nowPlaying, listens } = result.data;
+  const { nowPlaying, listens, account, spotifyOnly, omitted } = result.data;
   const zone = mounted ? undefined : "UTC";
   const clock = now ?? serverNow;
 
   if (!nowPlaying && listens.length === 0) {
-    return <StateMessage>no recent listens</StateMessage>;
+    return (
+      <StateMessage hint={hint(`ListenBrainz knows "${account}" but has no listens for it: connect Spotify under ListenBrainz > Settings > Connect services (or import your history), then play something. If this is not your account, check LISTENBRAINZ_USERNAME`, hints)}>
+        no recent listens
+      </StateMessage>
+    );
   }
 
   return (
     <div className="listening">
       {result.stale ? <p className="stale-note">showing last known data</p> : null}
+      {spotifyOnly && omitted > 0 ? <p className="stale-note">spotify listens only · {omitted} from other sources hidden</p> : null}
+      {hints ? <p className="stale-note">{`owner hint: reading ListenBrainz account "${account}"`}</p> : null}
       {nowPlaying ? (
         <div className="now-playing">
           <p className="now-playing__label">

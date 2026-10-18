@@ -383,6 +383,27 @@ describe("lanyard store with the server fallback", () => {
     store.stop();
   });
 
+  it("uses the server's snapshot when the socket says it is open but has delivered nothing", async () => {
+    const { store } = makeFallbackStore(restDown, snapshotOk("dnd"));
+    store.start();
+    const socket = FakeSocket.instances[0]!;
+    socket.open();
+    socket.emit({ op: 1, d: { heartbeat_interval: 30_000 } }); // handshake done, no INIT_STATE ever follows
+    expect(store.getSnapshot().connection).toBe("open");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getSnapshot().presence?.status).toBe("dnd");
+    store.stop();
+  });
+
+  it("says when Lanyard's address answered with something that is not JSON", async () => {
+    const portal = () => Promise.resolve(new Response("<html>sign in to the wifi</html>", { status: 200 }));
+    const { store } = makeFallbackStore(portal, fromServer({ status: "unavailable", detail: "lanyard: network" }, 502));
+    store.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getSnapshot().detail).toContain("answered HTTP 200 but not with JSON");
+    store.stop();
+  });
+
   it("cleans up the fallback poll when stopped", async () => {
     const { store } = makeFallbackStore(restOk, snapshotOk());
     store.start();

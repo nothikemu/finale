@@ -123,6 +123,22 @@ function listens() {
   }));
 }
 
+/** An account whose client marks only some listens as Spotify, to exercise the "spotify listens only" note. */
+function mixedListens() {
+  const now = Math.floor(Date.now() / 1000);
+  return Array.from({ length: 5 }, (_, i) => ({
+    listened_at: now - 300 - i * 600,
+    recording_msid: `mixed-${i}`,
+    track_metadata: {
+      artist_name: "Mixed Artist",
+      track_name: i < 3 ? `Spotify Track ${i + 1}` : `Elsewhere Track ${i - 2}`,
+      release_name: null,
+      additional_info: i < 3 ? { music_service: "spotify.com" } : { submission_client: "some-other-player" },
+      mbid_mapping: null,
+    },
+  }));
+}
+
 const json = (body, status = 200, headers = {}) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
 
@@ -170,8 +186,14 @@ globalThis.fetch = async (input, init) => {
     const next = page < 2 ? { link: `<https://api.github.com/users/nothikemu/repos?page=${page + 1}>; rel="next"` } : {};
     return json(repos(page), 200, next);
   }
-  if (isListenBrainz && url.pathname === "/1/validate-token") return json({ code: 200, message: "Token valid.", valid: true, user_name: "fixture-user" });
+  if (isListenBrainz && url.pathname === "/1/validate-token") {
+    // Like the real service, a token that was reset is answered 200 with valid:false.
+    if (new Headers(init?.headers).get("authorization") === "Token 00000000-0000-4000-8000-000000000000") return json({ code: 200, message: "Token invalid.", valid: false });
+    return json({ code: 200, message: "Token valid.", valid: true, user_name: "fixture-user" });
+  }
   if (isListenBrainz && url.pathname === "/1/user/fixture-user/listens") return json({ payload: { count: 50, listens: listens() } });
+  if (isListenBrainz && url.pathname === "/1/user/fixture-mixed/listens") return json({ payload: { count: 5, listens: mixedListens() } });
+  if (isListenBrainz && url.pathname === "/1/user/fixture-mixed/playing-now") return json({ payload: { count: 0, playing_now: true, listens: [] } });
   if (isListenBrainz && url.pathname === "/1/user/fixture-user/playing-now") {
     return json({ payload: { count: 1, playing_now: true, listens: [{ playing_now: true, track_metadata: { artist_name: "Now Playing Artist", track_name: "Now Playing Fixture", release_name: "Fixture Single" } }] } });
   }

@@ -151,6 +151,7 @@ export function parseLanyardPresence(raw: unknown, options: ParseOptions = {}): 
   const status = oneOf(root.discord_status, STATUSES);
   if (!id || !isSnowflake(id) || !username || !status) return null;
 
+  const spotify = parseSpotify(root.spotify);
   const activities: ActivityView[] = [];
   let customStatus: CustomStatus | null = null;
   const rawActivities = Array.isArray(root.activities) ? root.activities : [];
@@ -161,8 +162,9 @@ export function parseLanyardPresence(raw: unknown, options: ParseOptions = {}): 
       customStatus ??= parseCustomStatus(rec);
       continue;
     }
-    // Spotify is rendered from Lanyard's dedicated `spotify` field instead.
-    if (rec.id === "spotify:1") continue;
+    // Spotify is rendered from Lanyard's dedicated `spotify` field instead, but only when that field
+    // gave a usable card; otherwise the generic activity (name, details, state) is the next best thing.
+    if (rec.id === "spotify:1" && spotify !== null) continue;
     const parsed = parseActivity(rec);
     if (parsed && activities.length < MAX_ACTIVITIES) activities.push(parsed);
   }
@@ -192,7 +194,7 @@ export function parseLanyardPresence(raw: unknown, options: ParseOptions = {}): 
     badges: badgesFromPublicFlags(user.public_flags),
     platforms,
     customStatus,
-    spotify: parseSpotify(root.spotify),
+    spotify,
     activities,
     kvBio,
   };

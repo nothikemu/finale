@@ -2,7 +2,7 @@ import "server-only";
 
 import type { UnavailableReason } from "@/data/types";
 
-export type UpstreamErrorKind = "rate-limited" | "auth" | "not-found" | "network" | "timeout" | "upstream" | "invalid-response";
+export type UpstreamErrorKind = "rate-limited" | "auth" | "not-found" | "bad-config" | "network" | "timeout" | "upstream" | "invalid-response";
 
 /**
  * A normalised upstream failure. Messages are composed here from the service
@@ -27,6 +27,10 @@ export class UpstreamError extends Error {
         return "rate-limited";
       case "auth":
         return "auth";
+      case "not-found":
+        return "not-found";
+      case "bad-config":
+        return "bad-config";
       case "network":
       case "timeout":
         return "network";

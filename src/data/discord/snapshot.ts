@@ -24,13 +24,18 @@ export interface PresenceSnapshot {
   presence: DiscordPresence | null;
 }
 
+/*
+ * The browser gives this route 8 s (REST_TIMEOUT_MS in lanyard-store.ts); two 3 s attempts plus a short
+ * pause fit inside that, so a Lanyard that silently drops requests is reported, not timed out blindly.
+ */
+
 /** Presence changes in minutes; a snapshot older than this is not shown as current. */
 const MAX_AGE_MS = 2 * 60_000;
 
 async function fetchSnapshot(userId: string): Promise<PresenceSnapshot> {
   let json: unknown;
   try {
-    ({ json } = await fetchUpstreamJson(lanyardRestUrl(userId), { service: "lanyard", timeoutMs: 5000, retries: 1 }));
+    ({ json } = await fetchUpstreamJson(lanyardRestUrl(userId), { service: "lanyard", timeoutMs: 3000, retries: 1 }));
   } catch (error) {
     // For this fixed path, Lanyard's only 404 is user_not_monitored.
     if (error instanceof UpstreamError && error.kind === "not-found") return { tracked: false, presence: null };

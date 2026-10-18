@@ -4,10 +4,13 @@ import { describeFailure } from "@/lib/failure";
 describe("describeFailure", () => {
   it("names the missing variable", () => {
     expect(describeFailure({ status: "missing-config", missing: ["LISTENBRAINZ_TOKEN"] })).toContain("LISTENBRAINZ_TOKEN");
+    expect(describeFailure({ status: "missing-config", missing: ["LISTENBRAINZ_USERNAME", "LISTENBRAINZ_TOKEN"] })).toContain("LISTENBRAINZ_USERNAME or LISTENBRAINZ_TOKEN");
+    expect(describeFailure({ status: "missing-config", missing: ["X"] })).toContain("/status");
   });
   it("explains each failure reason in actionable terms and keeps the typed detail", () => {
-    const text = (reason: "auth" | "rate-limited" | "network" | "upstream" | "invalid-response") => describeFailure({ status: "unavailable", reason, detail: `svc: ${reason}` })!;
+    const text = (reason: "auth" | "not-found" | "rate-limited" | "network" | "upstream" | "invalid-response") => describeFailure({ status: "unavailable", reason, detail: `svc: ${reason}` })!;
     expect(text("auth")).toMatch(/svc: auth: .*rejected the credential/);
+    expect(text("not-found")).toMatch(/does not know that account/);
     expect(text("rate-limited")).toMatch(/rate limiting/);
     expect(text("network")).toMatch(/internet access/);
     expect(text("upstream")).toMatch(/returned an error/);

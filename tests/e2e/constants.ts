@@ -22,4 +22,10 @@ export const URLS = {
   publicOnly: "http://localhost:3106",
   /** healthy, and the server (not the browser) can reach Lanyard; owner hints on */
   serverLanyard: "http://localhost:3107",
+  /** nothing configured, owner diagnostics on */
+  unconfiguredDiagnostics: "http://localhost:3108",
+  /** nothing configured, SHOW_DIAGNOSTICS unset: hints appear only for a viewer on localhost */
+  localViewer: "http://localhost:3109",
+  /** ListenBrainz configured with a list of guessed usernames, one of them real; its listens are mixed */
+  guessedUsernames: "http://localhost:3110",
 } as const;

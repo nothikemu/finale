@@ -19,5 +19,5 @@ async function ListeningContent() {
   // Runs once per request on the server; the value only seeds the client's first render.
   // eslint-disable-next-line react-hooks/purity
   const serverNow = Date.now();
-  return <ListeningFeed initial={initial} serverNow={serverNow} hints={hintsEnabled()} />;
+  return <ListeningFeed initial={initial} serverNow={serverNow} hints={await hintsEnabled()} />;
 }

@@ -265,13 +265,15 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
         }
       } else if (asRecord(body?.error)?.code === "user_not_monitored") {
         set({ notTracked: true, failed: false, detail: null });
+      } else if (body === null) {
+        restIssue = `api.lanyard.rest answered HTTP ${response.status} but not with JSON (a proxy or captive portal in the way?)`;
       } else {
         restIssue = `api.lanyard.rest answered HTTP ${response.status}`;
       }
     } catch {
       // A deliberate abort (restart or stop) is not a failure; a timeout or network error is.
       if (running && restController === controller) {
-        restIssue = timedOut ? "api.lanyard.rest did not answer in time" : "the browser could not reach api.lanyard.rest";
+        restIssue = timedOut ? "api.lanyard.rest did not answer in time" : "the browser could not reach api.lanyard.rest (blocked by an extension or firewall, or offline)";
       }
     } finally {
       if (restController === controller) clearTimeout(restTimer);
@@ -303,8 +305,9 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
         if (state.presence === null) set({ notTracked: true, failed: false, detail: null });
       } else if (body?.status === "ok" && isPresenceView(data?.presence)) {
         serverIssue = null;
-        // The live socket is fresher than any snapshot; only fill in while it is not delivering.
-        if (state.connection !== "open") set({ presence: data.presence, updatedAt: deps.now(), failed: false, notTracked: false, detail: null });
+        // Live data is fresher than any snapshot, so it is only replaced while the socket is not
+        // open; but a socket that is "open" yet has delivered nothing must not leave the panel empty.
+        if (state.connection !== "open" || state.presence === null) set({ presence: data.presence, updatedAt: deps.now(), failed: false, notTracked: false, detail: null });
       } else if (body?.status === "unavailable") {
         serverIssue = typeof body.detail === "string" ? body.detail.slice(0, 160) : "unavailable";
       } else if (body?.status === "missing-config") {

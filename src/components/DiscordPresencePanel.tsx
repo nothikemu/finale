@@ -10,20 +10,20 @@ import { hintsEnabled, ownerHint } from "@/lib/server/diagnostics";
  * Discord ID is a public identifier, so it is safe to hand to the client, which
  * talks to Lanyard directly. Nothing is inferred or defaulted when it is absent.
  */
-export function DiscordPresencePanel() {
+export async function DiscordPresencePanel() {
   const userId = serverEnv.discordUserId;
   const bannerUrl = safeHttpsUrl(serverEnv.profileBannerUrl);
   const fallbackBio = cleanMultiline(serverEnv.profileBio, 300);
 
   if (!userId) {
     warnOnce("discord-id", "DISCORD_USER_ID is not set; the Discord presence panel shows its setup state.");
-    return <DiscordShell state="missing-config" hint={ownerHint("set DISCORD_USER_ID (see README)")} bannerUrl={bannerUrl} />;
+    return <DiscordShell state="missing-config" hint={await ownerHint("DISCORD_USER_ID did not reach this server. Open /status to see what it received, or set discordUserId in src/config/identity.ts (see README)")} bannerUrl={bannerUrl} />;
   }
   if (!isSnowflake(userId)) {
     warnOnce("discord-id-invalid", "DISCORD_USER_ID must be a numeric Discord user ID.");
-    return <DiscordShell state="invalid-config" hint={ownerHint("DISCORD_USER_ID must be numeric (see README)")} bannerUrl={bannerUrl} />;
+    return <DiscordShell state="invalid-config" hint={await ownerHint("DISCORD_USER_ID must be the numeric Discord user ID, digits only (see README). Open /status to see what this server received")} bannerUrl={bannerUrl} />;
   }
-  return <DiscordPresence userId={userId} bannerUrl={bannerUrl} fallbackBio={fallbackBio} kv={site.discord.kv} hints={hintsEnabled()} />;
+  return <DiscordPresence userId={userId} bannerUrl={bannerUrl} fallbackBio={fallbackBio} kv={site.discord.kv} hints={await hintsEnabled()} />;
 }
 
 function DiscordShell({ state, hint, bannerUrl }: { state: "missing-config" | "invalid-config"; hint?: string; bannerUrl: string | null }) {

@@ -28,10 +28,10 @@ async function CalendarContent() {
   const result = await loadContributions(site.githubUsername);
 
   if (result.status === "missing-config") {
-    return <StateMessage hint={failureHint(result)}>github activity not configured</StateMessage>;
+    return <StateMessage hint={await failureHint(result)}>github activity not configured</StateMessage>;
   }
   if (result.status === "unavailable") {
-    return <StateMessage hint={failureHint(result)}>github activity unavailable</StateMessage>;
+    return <StateMessage hint={await failureHint(result)}>github activity unavailable</StateMessage>;
   }
   return <Calendar calendar={result.data} stale={result.stale} />;
 }

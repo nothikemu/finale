@@ -20,7 +20,7 @@ async function ProjectsContent() {
   const result = await loadProjects(site.githubUsername);
 
   if (result.status !== "ok") {
-    return <StateMessage hint={failureHint(result)}>github projects unavailable</StateMessage>;
+    return <StateMessage hint={await failureHint(result)}>github projects unavailable</StateMessage>;
   }
   if (result.data.length === 0) {
     return <StateMessage>no public repositories</StateMessage>;

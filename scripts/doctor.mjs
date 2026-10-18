@@ -8,7 +8,7 @@
  * reported as "set" / "not set" plus whether their format looks right.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import nextEnv from "@next/env";
 
@@ -32,37 +32,138 @@ const fail = (text, fix) => {
 // ---- environment -----------------------------------------------------------
 
 heading("1. Environment");
-const nodeMajor = Number(process.versions.node.split(".")[0]);
-if (nodeMajor >= 20) ok(`Node ${process.versions.node}`);
-else fail(`Node ${process.versions.node} is too old`, "install Node 20.9 or newer");
+const [nodeMajor = 0, nodeMinor = 0] = process.versions.node.split(".").map(Number);
+if (nodeMajor > 20 || (nodeMajor === 20 && nodeMinor >= 9)) ok(`Node ${process.versions.node}`);
+else fail(`Node ${process.versions.node} is too old (Next.js 16 needs 20.9 or newer)`, "install a current Node LTS from https://nodejs.org");
 
-nextEnv.loadEnvConfig(process.cwd(), false, { info() {}, error() {} });
+const SETTINGS = ["DISCORD_USER_ID", "LISTENBRAINZ_USERNAME", "LISTENBRAINZ_TOKEN", "GITHUB_TOKEN", "SHOW_DIAGNOSTICS"];
+// What the shell already holds wins over every env file, so remember it before the files are read.
+const shellHad = Object.fromEntries(SETTINGS.map((name) => [name, process.env[name]]));
+const loaded = nextEnv.loadEnvConfig(process.cwd(), false, { info() {}, error() {} });
 const envFiles = [".env.local", ".env", ".env.production", ".env.production.local"].filter((f) => existsSync(join(process.cwd(), f)));
 if (envFiles.length) ok(`environment files found: ${envFiles.join(", ")}`);
-else fail("no .env.local (or .env) file in this folder", "copy .env.example to .env.local and fill it in, or set the variables in your host's settings; dotfiles are hidden in Finder/Explorer, so check from a terminal with: ls -a");
+else {
+  let lookalikes = [];
+  try {
+    lookalikes = readdirSync(process.cwd()).filter((name) => /^\.?env([._ -].*)?$/i.test(name) && !/^\.env\.example$/i.test(name));
+  } catch {
+    // unreadable folder: the generic message below still applies
+  }
+  fail(
+    lookalikes.length ? `no .env.local in this folder, but these look like it: ${lookalikes.join(", ")}` : "no .env.local (or .env) file in this folder",
+    lookalikes.length
+      ? "rename it to exactly .env.local (Windows Explorer hides extensions: '.env.local.txt' shows as '.env.local')"
+      : "copy .env.example to .env.local and fill it in, or set the variables in your host's settings; dotfiles are hidden in Finder/Explorer, so check from a terminal with: ls -a",
+  );
+}
+info(`looked in ${process.cwd()}`);
+
+for (const entry of loaded.loadedEnvFiles ?? []) {
+  const name = entry.path;
+  const bytes = (() => {
+    try {
+      return readFileSync(join(process.cwd(), name));
+    } catch {
+      return Buffer.alloc(0);
+    }
+  })();
+  const utf16 = (bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff) || bytes.includes(0);
+  if (utf16) fail(`${name} is saved as UTF-16, which Next.js cannot read: every variable in it is ignored`, "re-save it as UTF-8 (Notepad: File > Save As > Encoding: UTF-8; PowerShell's '>' redirection writes UTF-16)");
+  else if (bytes.length === 0) warn(`${name} is empty`);
+  else if (Object.keys(entry.env ?? {}).length === 0) warn(`${name} was found but contains no KEY=value lines that could be read`);
+}
+/** The value an env file assigns to `name`, read from its raw text (the loader rewrites its parsed copy). */
+function rawFileValue(contents, name) {
+  // Spaces and tabs only around "=": \\s would also swallow the newline and read the next line as this value.
+  const match = new RegExp(`^[ \\t]*(?:export[ \\t]+)?${name}[ \\t]*=[ \\t]*(.*)$`, "m").exec(contents ?? "");
+  if (!match) return undefined;
+  let value = match[1].trim();
+  const quote = /^(["'])(.*?)\1/.exec(value);
+  value = quote ? quote[2] : value.replace(/\s+#.*$/, "");
+  return value.trim();
+}
+for (const name of SETTINGS) {
+  const fromShell = shellHad[name];
+  if (fromShell === undefined) continue;
+  for (const entry of loaded.loadedEnvFiles ?? []) {
+    const fileValue = rawFileValue(entry.contents, name);
+    if (fileValue === undefined || fileValue === fromShell) continue;
+    warn(`${name} is already set in this shell's environment, and it overrides ${entry.path}`);
+    info(fromShell === "" ? `it is set to an empty value; remove it with: unset ${name} (PowerShell: Remove-Item Env:${name})` : "the file's value is ignored; remove the shell variable or use it intentionally");
+    break;
+  }
+}
+// A file whose settings are all present but empty is the blank template: the usual result of copying
+// .env.example over a file that had values in it.
+for (const entry of loaded.loadedEnvFiles ?? []) {
+  const assigned = SETTINGS.filter((name) => rawFileValue(entry.contents, name) !== undefined);
+  if (assigned.length >= 3 && assigned.every((name) => rawFileValue(entry.contents, name) === "")) {
+    fail(`${entry.path} lists ${assigned.join(", ")} but every value is empty: it looks like the blank template`, "if you were given a filled-in .env.local, restore it: copying .env.example over it replaces your values with blanks");
+  }
+}
+
+// `npm run dev` reads different files from `npm start`; a stale or blank .env.development(.local) can outrank .env.local there.
+const devFiles = [".env.development.local", ".env.development"].filter((f) => existsSync(join(process.cwd(), f)));
+for (const file of devFiles) {
+  let text = "";
+  try {
+    text = readFileSync(join(process.cwd(), file), "utf8");
+  } catch {
+    continue;
+  }
+  const local = (loaded.loadedEnvFiles ?? []).find((entry) => entry.path === ".env.local");
+  for (const name of SETTINGS) {
+    const there = rawFileValue(text, name);
+    const here = rawFileValue(local?.contents, name);
+    if (there !== undefined && here !== undefined && there !== here) {
+      warn(`${file} also sets ${name}${there === "" ? " (empty)" : ""}; in 'npm run dev' it outranks .env.local, which is what this check read`);
+      info(`fix: delete ${file}, or remove ${name} from it`);
+    }
+  }
+}
+if (process.env.NODE_ENV === "test") {
+  warn("NODE_ENV is 'test' in this shell: Next.js skips .env.local in that mode");
+  info("fix: unset NODE_ENV (or set it to production)");
+}
 
 const env = (name) => (process.env[name] ?? "").trim();
 const placeholder = /^(replace[_-]?with|your[_-]|changeme|todo$|xxx+$)/i;
 const has = (name) => env(name) !== "" && !placeholder.test(env(name));
 
-const discordId = env("DISCORD_USER_ID");
+/** Public identifiers may also live in src/config/identity.ts (for hosts that never receive .env.local); the environment wins. */
+function identityValue(key) {
+  try {
+    const text = readFileSync(join(process.cwd(), "src/config/identity.ts"), "utf8");
+    const value = new RegExp(`\\b${key}:\\s*(?:null\\s+as\\s+string\\s*\\|\\s*null|"([^"]*)")`).exec(text)?.[1]?.trim() ?? "";
+    return value && !placeholder.test(value) ? value : "";
+  } catch {
+    return "";
+  }
+}
+
+const discordFromEnv = has("DISCORD_USER_ID");
+const discordId = discordFromEnv ? env("DISCORD_USER_ID") : identityValue("discordUserId");
 const lbToken = env("LISTENBRAINZ_TOKEN");
-const lbUser = env("LISTENBRAINZ_USERNAME");
+const lbUserFromEnv = has("LISTENBRAINZ_USERNAME");
+const lbUser = lbUserFromEnv ? env("LISTENBRAINZ_USERNAME") : identityValue("listenbrainzUsername");
 const ghToken = env("GITHUB_TOKEN");
 
-if (!has("DISCORD_USER_ID")) {
-  fail("DISCORD_USER_ID is not set: the Discord panel will say 'presence not configured'", "set DISCORD_USER_ID=<your numeric Discord ID>");
+if (!discordId) {
+  fail("DISCORD_USER_ID is not set: the Discord panel will say 'presence not configured'", "set DISCORD_USER_ID=<your numeric Discord ID> (or discordUserId in src/config/identity.ts)");
 } else if (/^\d{15,25}$/.test(discordId)) {
-  ok("DISCORD_USER_ID is set and looks like a Discord ID");
+  ok(discordFromEnv ? "DISCORD_USER_ID is set and looks like a Discord ID" : "discordUserId in src/config/identity.ts is set and looks like a Discord ID");
 } else {
   fail("DISCORD_USER_ID is set but is not a numeric Discord ID", "copy your User ID from Discord (Settings > Advanced > Developer Mode, then right-click your profile > Copy User ID)");
 }
 
-if (has("LISTENBRAINZ_USERNAME")) ok("LISTENBRAINZ_USERNAME is set (no token is needed to read public listens)");
-else if (has("LISTENBRAINZ_TOKEN")) {
+if (lbUser) ok(lbUserFromEnv ? "LISTENBRAINZ_USERNAME is set (no token is needed to read public listens)" : "listenbrainzUsername in src/config/identity.ts is set (no token is needed to read public listens)");
+if (has("LISTENBRAINZ_TOKEN")) {
   if (/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(lbToken)) ok("LISTENBRAINZ_TOKEN is set and has the expected format");
   else warn("LISTENBRAINZ_TOKEN is set but is not in the usual UUID format; it may have been copied incorrectly");
-} else fail("neither LISTENBRAINZ_TOKEN nor LISTENBRAINZ_USERNAME is set: the listening panel will say 'listening not configured'", "set LISTENBRAINZ_USERNAME=<your ListenBrainz username> (simplest, nothing secret); a LISTENBRAINZ_TOKEN from https://listenbrainz.org/settings/ also works");
+}
+if (!lbUser && !has("LISTENBRAINZ_TOKEN")) {
+  fail("neither LISTENBRAINZ_TOKEN nor LISTENBRAINZ_USERNAME is set: the listening panel will say 'listening not configured'", "set LISTENBRAINZ_USERNAME=<your ListenBrainz username> (simplest, nothing secret), or listenbrainzUsername in src/config/identity.ts; a LISTENBRAINZ_TOKEN from https://listenbrainz.org/settings/ also works");
+}
 
 if (has("GITHUB_TOKEN")) {
   if (/^(github_pat_[A-Za-z0-9_]{60,}|gh[pousr]_[A-Za-z0-9]{30,})$/.test(ghToken)) ok("GITHUB_TOKEN is set and has the expected format");
@@ -168,22 +269,40 @@ if (!/^\d{15,25}$/.test(discordId)) {
 // ---- ListenBrainz ----------------------------------------------------------------
 
 heading("3. Recently played (ListenBrainz)");
-let lbName = has("LISTENBRAINZ_USERNAME") ? lbUser : undefined;
-if (!lbName && has("LISTENBRAINZ_TOKEN")) {
+// Same rules as the site: a valid token says whose account this is; the username(s) are the fallback and may list several guesses.
+const lbNames = lbUser.split(",").map((name) => name.trim()).filter(Boolean);
+const lbCandidates = [];
+if (has("LISTENBRAINZ_TOKEN")) {
   const res = await request("https://api.listenbrainz.org/1/validate-token", { headers: { authorization: `Token ${lbToken}` } });
-  if (res.error) fail(`could not reach api.listenbrainz.org: ${res.error}`, NET_FIX);
+  if (res.error) (lbNames.length ? warn : (text) => fail(text, NET_FIX))(`could not reach api.listenbrainz.org to check the token: ${res.error}`);
   else if (res.json?.valid === true && res.json.user_name) {
-    lbName = res.json.user_name;
-    ok(`token is valid (ListenBrainz user: ${lbName})`);
+    ok(`token is valid (ListenBrainz user: ${res.json.user_name})`);
+    info(`your ListenBrainz username is "${res.json.user_name}". The site uses it, whatever LISTENBRAINZ_USERNAME says`);
+    lbCandidates.push(res.json.user_name);
   } else if (res.status === 429) fail("ListenBrainz is rate limiting this machine", "wait a few minutes and retry");
-  else fail(`ListenBrainz rejected the token (HTTP ${res.status}${res.json?.message ? `: ${res.json.message}` : ""})`, "create a new token at https://listenbrainz.org/settings/ and update LISTENBRAINZ_TOKEN");
-} else if (!lbName) warn("skipped: no ListenBrainz token or username configured");
+  else if (lbNames.length) {
+    warn(`ListenBrainz rejected the token (HTTP ${res.status}${res.json?.message ? `: ${res.json.message}` : ""}); the site will use the username instead`);
+    info("a token that was reset stops working; the username alone is enough for public listens");
+  } else fail(`ListenBrainz rejected the token (HTTP ${res.status}${res.json?.message ? `: ${res.json.message}` : ""})`, "set LISTENBRAINZ_USERNAME (public listens need no token), or create a new token at https://listenbrainz.org/settings/ and update LISTENBRAINZ_TOKEN");
+}
+for (const name of lbNames) if (!lbCandidates.includes(name)) lbCandidates.push(name);
+if (lbCandidates.length === 0) warn("skipped: no usable ListenBrainz token or username");
 
-if (lbName) {
-  const res = await request(`https://api.listenbrainz.org/1/user/${encodeURIComponent(lbName)}/listens?count=50`);
-  if (res.error) fail(`could not fetch listens: ${res.error}`, NET_FIX);
-  else if (res.status === 404) fail(`ListenBrainz has no user named '${lbName}'`, "check LISTENBRAINZ_USERNAME, or use LISTENBRAINZ_TOKEN instead");
-  else if (res.status !== 200 || !Array.isArray(res.json?.payload?.listens)) fail(`listens request answered HTTP ${res.status}`, "try again shortly");
+let lbName;
+const unknownNames = [];
+for (const candidate of lbCandidates) {
+  const res = await request(`https://api.listenbrainz.org/1/user/${encodeURIComponent(candidate)}/listens?count=50`);
+  if (res.error) {
+    fail(`could not fetch listens: ${res.error}`, NET_FIX);
+    break;
+  }
+  if (res.status === 404) {
+    unknownNames.push(candidate);
+    if (lbCandidates.length > 1) info(`ListenBrainz has no user named "${candidate}"; trying the next one`);
+    continue;
+  }
+  lbName = candidate;
+  if (res.status !== 200 || !Array.isArray(res.json?.payload?.listens)) fail(`listens request answered HTTP ${res.status}`, "try again shortly");
   else {
     const listens = res.json.payload.listens;
     const spotify = listens.filter((l) => {
@@ -191,14 +310,18 @@ if (lbName) {
       return String(i.music_service ?? "").toLowerCase() === "spotify.com" || String(i.music_service_name ?? "").toLowerCase() === "spotify" || String(i.spotify_id ?? "").includes("open.spotify.com/track/");
     }).length;
     if (listens.length === 0) {
-      fail("ListenBrainz returned 0 listens for this user, so the panel will say 'no recent listens'", "connect Spotify under ListenBrainz > Settings > Connect services (or import your history), then play something");
+      fail(`ListenBrainz knows "${candidate}" but returned 0 listens, so the panel will say 'no recent listens'`, "connect Spotify under ListenBrainz > Settings > Connect services (or import your history), then play something");
     } else {
-      ok(`${listens.length} recent listens found (${spotify} marked as coming from Spotify)`);
+      ok(`${listens.length} recent listens found for "${candidate}" (${spotify} marked as coming from Spotify)`);
       const newest = Number(listens[0]?.listened_at);
       if (newest) info(`most recent listen: ${new Date(newest * 1000).toISOString()}`);
       if (spotify > 0 && spotify < listens.length) info("because some listens are marked as Spotify, only those are shown");
     }
   }
+  break;
+}
+if (!lbName && unknownNames.length > 0 && unknownNames.length === lbCandidates.length) {
+  fail(`ListenBrainz has no user named ${unknownNames.map((name) => `"${name}"`).join(" or ")}`, "use the name in the address of your profile (listenbrainz.org/user/<name>); several guesses can be listed separated by commas");
 }
 
 // ---- GitHub ------------------------------------------------------------------------

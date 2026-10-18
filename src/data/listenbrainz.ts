@@ -59,7 +59,8 @@ function isSpotifyOrigin(raw: RawListen): boolean {
     service === "spotify" ||
     info.music_service_name?.toLowerCase() === "spotify" ||
     (info.submission_client?.toLowerCase().includes("spotify") ?? false) ||
-    spotifyTrackUrl(info.spotify_id) !== null
+    spotifyTrackUrl(info.spotify_id) !== null ||
+    spotifyTrackUrl(info.origin_url) !== null
   );
 }
 
@@ -90,6 +91,8 @@ function toTrack(raw: RawListen, id: string): Track | null {
 export interface NormalizedListens {
   listens: Listen[];
   spotifyOnly: boolean;
+  /** Listens left out because ListenBrainz marks others as Spotify and these as coming from somewhere else. */
+  omitted: number;
 }
 
 /**
@@ -120,7 +123,7 @@ export function normalizeListens(payload: unknown): NormalizedListens {
   const spotifyEntries = entries.filter((entry) => entry.spotify);
   const spotifyOnly = spotifyEntries.length > 0 && spotifyEntries.length < entries.length;
   const chosen = spotifyEntries.length > 0 ? spotifyEntries : entries;
-  return { listens: chosen.map((entry) => entry.listen), spotifyOnly };
+  return { listens: chosen.map((entry) => entry.listen), spotifyOnly, omitted: spotifyOnly ? entries.length - chosen.length : 0 };
 }
 
 export function normalizePlayingNow(payload: unknown): Track | null {
@@ -135,20 +138,42 @@ export function normalizePlayingNow(payload: unknown): Track | null {
   return null;
 }
 
-async function resolveUsername(): Promise<string> {
-  const configured = serverEnv.listenbrainzUsername;
-  if (configured) {
-    if (!USERNAME.test(configured)) {
-      warnOnce("lb-username", "LISTENBRAINZ_USERNAME contains unsupported characters.");
-      throw new MissingConfigError(["LISTENBRAINZ_USERNAME"]);
+const MAX_CANDIDATES = 5;
+
+const PROFILE_ADDRESS = /^(?:https?:\/\/)?(?:www\.)?listenbrainz\.org\/user\/([^/?#]+)/i;
+/** Candidate spellings may be separated by commas, semicolons, bars, or the word "or" (as in "name1 or name2"). */
+const SEPARATORS = /\s*(?:[,;|]|\s+or\s+)\s*/i;
+
+/** A pasted profile address ("https://listenbrainz.org/user/name/") or an "@name" stands for the name in it. */
+function fromPastedForm(entry: string): string {
+  const name = PROFILE_ADDRESS.exec(entry)?.[1];
+  if (name) {
+    try {
+      return decodeURIComponent(name);
+    } catch {
+      return entry;
     }
-    return configured;
   }
-  const token = serverEnv.listenbrainzToken;
-  if (!token) {
-    warnOnce("lb-token", "Neither LISTENBRAINZ_USERNAME nor LISTENBRAINZ_TOKEN is set; recent listening is unavailable.");
-    throw new MissingConfigError(["LISTENBRAINZ_USERNAME", "LISTENBRAINZ_TOKEN"]);
-  }
+  return entry.replace(/^@+/, "");
+}
+
+/** Splits a configured username setting. `rejected` counts entries that cannot be a ListenBrainz username. */
+export function splitUsernames(configured: string | undefined): { valid: string[]; rejected: number } {
+  const entries = (configured ?? "")
+    .split(SEPARATORS)
+    .map((entry) => fromPastedForm(entry.trim()))
+    .filter(Boolean);
+  const valid = [...new Set(entries.filter((entry) => USERNAME.test(entry)))].slice(0, MAX_CANDIDATES);
+  const rejected = entries.filter((entry) => !USERNAME.test(entry)).length;
+  if (rejected > 0) warnOnce("lb-username", "LISTENBRAINZ_USERNAME contains an entry with unsupported characters; it was ignored.");
+  return { valid, rejected };
+}
+
+/** "a, b" -> ["a", "b"]: usernames are compared as typed; unusable entries are dropped, never repaired. */
+export const parseUsernames = (configured: string | undefined): string[] => splitUsernames(configured).valid;
+
+/** Asks ListenBrainz whose token this is. Cached, so the token is sent at most once per cache window. */
+async function usernameForToken(token: string): Promise<string> {
   const result = await cached({
     key: "listenbrainz:username",
     ttlMs: cacheTtl.listenbrainzUsername,
@@ -156,6 +181,8 @@ async function resolveUsername(): Promise<string> {
       const { json } = await fetchUpstreamJson(`${API}/validate-token`, {
         service: "listenbrainz-token",
         init: { headers: { authorization: `Token ${token}` } },
+        timeoutMs: 6000,
+        retries: 1,
       });
       const parsed = validateResponse.safeParse(json);
       if (!parsed.success) throw new UpstreamError("invalid-response", "listenbrainz-token");
@@ -169,9 +196,43 @@ async function resolveUsername(): Promise<string> {
   return result.data;
 }
 
+interface Accounts {
+  /** The account a valid token belongs to: ListenBrainz itself says so, so nothing outranks it. */
+  fromToken: string | null;
+  /** Spellings from the configured username(s), best first. */
+  names: string[];
+}
+
+/**
+ * Which accounts to try. A valid token is authoritative. The configured username, or list of
+ * candidate spellings, is what remains when there is no token or it cannot be checked, so a
+ * revoked or reset token does not take the panel down while a username is known.
+ */
+export async function listeningAccounts(): Promise<Accounts> {
+  const configured = serverEnv.listenbrainzUsername;
+  const { valid: names, rejected } = splitUsernames(configured);
+  const token = serverEnv.listenbrainzToken;
+  let fromToken: string | null = null;
+  let tokenError: unknown;
+  if (token) {
+    try {
+      fromToken = await usernameForToken(token);
+    } catch (error) {
+      tokenError = error;
+    }
+  }
+  if (fromToken || names.length > 0) return { fromToken, names };
+  if (tokenError) throw tokenError;
+  if (configured && rejected > 0) throw new UpstreamError("bad-config", "LISTENBRAINZ_USERNAME");
+  warnOnce("lb-token", "Neither LISTENBRAINZ_USERNAME nor LISTENBRAINZ_TOKEN is set; recent listening is unavailable.");
+  throw new MissingConfigError(["LISTENBRAINZ_USERNAME", "LISTENBRAINZ_TOKEN"]);
+}
+
 async function fetchListens(username: string): Promise<NormalizedListens> {
   const { json } = await fetchUpstreamJson(`${API}/user/${encodeURIComponent(username)}/listens?count=${HISTORY_COUNT}`, {
     service: "listenbrainz",
+    timeoutMs: 6000,
+    retries: 1,
   });
   return normalizeListens(json);
 }
@@ -191,10 +252,22 @@ async function fetchPlayingNow(username: string): Promise<Track | null> {
         return normalizePlayingNow(json);
       },
     });
-    return result.data;
+    // "Playing now" is only true right now: a track from a failed refresh is not shown.
+    return result.stale ? null : result.data;
   } catch {
     return null;
   }
+}
+
+async function readAccount(account: string): Promise<ListeningData> {
+  const [history, nowPlaying] = await Promise.all([
+    cached({ key: `listenbrainz:listens:${account}`, ttlMs: cacheTtl.listens, load: () => fetchListens(account) }),
+    fetchPlayingNow(account),
+  ]);
+  // A stale history means the refresh failed; fail this layer too so the
+  // outer cache keeps serving (and flags) its last-known-good snapshot.
+  if (history.stale) throw new UpstreamError("upstream", "listenbrainz");
+  return { account, nowPlaying, listens: history.data.listens, spotifyOnly: history.data.spotifyOnly, omitted: history.data.omitted };
 }
 
 export function loadListening(): Promise<Loaded<ListeningData>> {
@@ -203,15 +276,31 @@ export function loadListening(): Promise<Loaded<ListeningData>> {
     key: "listenbrainz:listening",
     ttlMs: cacheTtl.nowPlaying,
     load: async () => {
-      const username = await resolveUsername();
-      const [history, nowPlaying] = await Promise.all([
-        cached({ key: `listenbrainz:listens:${username}`, ttlMs: cacheTtl.listens, load: () => fetchListens(username) }),
-        fetchPlayingNow(username),
-      ]);
-      // A stale history means the refresh failed; fail this layer too so the
-      // outer cache keeps serving (and flags) its last-known-good snapshot.
-      if (history.stale) throw new UpstreamError("upstream", "listenbrainz");
-      return { nowPlaying, listens: history.data.listens, spotifyOnly: history.data.spotifyOnly };
+      const { fromToken, names } = await listeningAccounts();
+      const ordered = fromToken ? [fromToken, ...names.filter((name) => name !== fromToken)] : names;
+      let unknown: UpstreamError | undefined;
+      let emptyButReal: ListeningData | undefined;
+      for (const account of ordered) {
+        try {
+          const data = await readAccount(account);
+          // The token's account is the owner's whatever it holds. Among guessed spellings, one with
+          // listens beats one that exists but is empty (the guess may belong to someone else).
+          if (account === fromToken || data.listens.length > 0 || data.nowPlaying) return data;
+          emptyButReal ??= data;
+        } catch (error) {
+          // ListenBrainz does not know this spelling: try the next candidate. Any other error
+          // stops here, so a hiccup can never show a different account's listens.
+          if (error instanceof UpstreamError && error.kind === "not-found") {
+            unknown = error;
+            continue;
+          }
+          throw error;
+        }
+      }
+      if (emptyButReal) return emptyButReal;
+      // Names are public identifiers, so naming what was tried is safe and tells the owner what to fix.
+      const tried = ordered.map((name) => `"${name}"`).join(" or ");
+      throw new UpstreamError("not-found", `listenbrainz (no user named ${tried})`, unknown?.status);
     },
   });
 }

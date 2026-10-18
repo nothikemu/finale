@@ -27,6 +27,9 @@ const securityHeaders = [
 ];
 
 const config: NextConfig = {
+  // The dev server refuses requests whose Origin is not localhost, which silently stops the page from
+  // hydrating. 127.0.0.1 is the same machine, so it is safe to allow; other hosts need an explicit entry.
+  allowedDevOrigins: ["127.0.0.1"],
   poweredByHeader: false,
   reactStrictMode: true,
   // Keep `next dev` from writing an AGENTS.md into the working tree.

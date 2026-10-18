@@ -102,3 +102,37 @@ test.describe("owner diagnostics (SHOW_DIAGNOSTICS=1)", () => {
     await expect(panel(page, "socials").locator("a")).toHaveCount(3);
   });
 });
+
+test.describe("the page's scripts never start (for instance a dev server opened by an IP address)", () => {
+  // The note appears after 14 s by design, so these two cases wait for real time.
+  test.setTimeout(45_000);
+
+  async function blockScripts(page: import("@playwright/test").Page) {
+    await page.route("**/_next/static/**/*.js", (route) => route.abort());
+  }
+
+  test("a visitor sees a calm 'still connecting' instead of a skeleton that never ends", async ({ page }) => {
+    await blockScripts(page);
+    await page.goto(URLS.healthy, { waitUntil: "domcontentloaded" });
+    const note = panel(page, "discord").locator(".discord__late");
+    await expect(note).toHaveCSS("opacity", "0");
+    await expect(note).toHaveCSS("opacity", "1", { timeout: 20_000 });
+    await expect(note).toHaveText("still connecting…");
+  });
+
+  test("the owner is told what to do about it", async ({ page }) => {
+    await blockScripts(page);
+    await page.goto(URLS.serverLanyard, { waitUntil: "domcontentloaded" });
+    const note = panel(page, "discord").locator(".discord__late");
+    await expect(note).toHaveCSS("opacity", "1", { timeout: 20_000 });
+    await expect(note).toContainText("this page's scripts did not start");
+    await expect(note).toContainText("http://localhost:PORT");
+  });
+
+  test("when the scripts do run, the note is never shown", async ({ page }) => {
+    await mockLanyard(page);
+    await page.goto(URLS.healthy);
+    await expect(panel(page, "discord").locator(".discord__name")).toBeVisible();
+    await expect(panel(page, "discord").locator(".discord__late")).toHaveCount(0);
+  });
+});

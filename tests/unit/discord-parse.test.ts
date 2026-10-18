@@ -245,3 +245,22 @@ describe("isPresenceView", () => {
     expect(isPresenceView({ ...view, user: { id: ID } })).toBe(false);
   });
 });
+
+describe("Spotify activity without a usable card", () => {
+  const spotifyActivity = { id: "spotify:1", type: 2, name: "Spotify", details: "A Song", state: "An Artist" };
+
+  it("is skipped when the dedicated spotify field supplies the card", () => {
+    const parsed = parseLanyardPresence(presence({ spotify: { song: "A Song", artist: "An Artist", track_id: "4uLU6hMCjMI75M1A2tKUQC" }, activities: [spotifyActivity] }))!;
+    expect(parsed.spotify?.track).toBe("A Song");
+    expect(parsed.activities).toEqual([]);
+  });
+
+  it("still shows as a generic activity when the spotify field is missing or incomplete", () => {
+    for (const spotify of [null, { song: "A Song", artist: null }, { artist: "An Artist" }]) {
+      const parsed = parseLanyardPresence(presence({ spotify, activities: [spotifyActivity] }))!;
+      expect(parsed.spotify).toBeNull();
+      expect(parsed.activities).toHaveLength(1);
+      expect(parsed.activities[0]).toMatchObject({ kind: "listening", name: "Spotify", details: "A Song", state: "An Artist" });
+    }
+  });
+});
