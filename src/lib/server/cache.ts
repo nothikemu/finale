@@ -113,6 +113,6 @@ export async function toLoaded<T>(options: CacheOptions<T>): Promise<Loaded<T>> 
     const upstream = error instanceof UpstreamError ? error : new UpstreamError("upstream", options.key);
     // Status and kind only: never the request, headers or credentials.
     console.warn(`[upstream] ${upstream.message}`);
-    return { status: "unavailable", reason: upstream.reason };
+    return { status: "unavailable", reason: upstream.reason, detail: upstream.message };
   }
 }

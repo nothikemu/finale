@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { site } from "@/config/site";
 import { loadProjects } from "@/data/github/projects";
 import { formatCount, formatShortDate, pluralize } from "@/lib/format";
+import { failureHint } from "@/lib/server/diagnostics";
 import { Panel, SkeletonRows, StateMessage } from "./Panel";
 import { ExternalIcon, ForkIcon, StarIcon } from "./icons";
 
@@ -19,7 +20,7 @@ async function ProjectsContent() {
   const result = await loadProjects(site.githubUsername);
 
   if (result.status !== "ok") {
-    return <StateMessage>github projects unavailable</StateMessage>;
+    return <StateMessage hint={failureHint(result)}>github projects unavailable</StateMessage>;
   }
   if (result.data.length === 0) {
     return <StateMessage>no public repositories</StateMessage>;

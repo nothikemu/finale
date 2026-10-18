@@ -176,7 +176,8 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
       return;
     }
     if (frame.op === 0 && (frame.t === "INIT_STATE" || frame.t === "PRESENCE_UPDATE")) {
-      acceptPresence(frame.d);
+      // A single subscription sends the presence itself; a multi-user reply keys it by ID. Accept both.
+      if (!acceptPresence(frame.d)) acceptPresence(asRecord(frame.d)?.[userId]);
     }
   }
 

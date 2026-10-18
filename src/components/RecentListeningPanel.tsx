@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import { loadListening } from "@/data/listenbrainz";
 import { ListeningFeed } from "./ListeningFeed";
-import { Panel, SkeletonRows, devHint } from "./Panel";
+import { hintsEnabled } from "@/lib/server/diagnostics";
+import { Panel, SkeletonRows } from "./Panel";
 
 export function RecentListeningPanel() {
   return (
@@ -18,5 +19,5 @@ async function ListeningContent() {
   // Runs once per request on the server; the value only seeds the client's first render.
   // eslint-disable-next-line react-hooks/purity
   const serverNow = Date.now();
-  return <ListeningFeed initial={initial} serverNow={serverNow} setupHint={devHint("set LISTENBRAINZ_TOKEN (see README)")} />;
+  return <ListeningFeed initial={initial} serverNow={serverNow} hints={hintsEnabled()} />;
 }

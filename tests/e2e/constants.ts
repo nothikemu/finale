@@ -8,7 +8,16 @@ export const FAKE_SECRETS = {
 export const TEST_DISCORD_ID = "100000000000000001";
 
 export const URLS = {
+  /** everything configured, healthy upstreams */
   healthy: "http://localhost:3101",
+  /** nothing configured, and github.com's public contributions page is blocked */
   unconfigured: "http://localhost:3102",
+  /** every upstream fails; production defaults (no owner hints) */
   outage: "http://localhost:3103",
+  /** GITHUB_TOKEN is set but GitHub rejects it (401), owner hints on */
+  badToken: "http://localhost:3104",
+  /** every upstream fails and SHOW_DIAGNOSTICS=1, so panels explain why */
+  outageDiagnostics: "http://localhost:3105",
+  /** no credentials at all, but GitHub's public pages work */
+  publicOnly: "http://localhost:3106",
 } as const;

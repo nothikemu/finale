@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { Listen, ListeningData, Loaded, Track } from "@/data/types";
+import { hint } from "@/lib/dev-hint";
+import { describeFailure } from "@/lib/failure";
 import { formatExactTimestamp, formatListenTime } from "@/lib/format";
 import { useNow } from "@/lib/use-now";
 import { Artwork } from "./Artwork";
@@ -24,11 +26,11 @@ interface Props {
   initial: Loaded<ListeningData>;
   /** Server render time, so relative times match the HTML on first client render. */
   serverNow: number;
-  /** Developer-only hint, undefined in production. */
-  setupHint?: string;
+  /** Whether owner-facing hints are shown (development, or SHOW_DIAGNOSTICS=1). */
+  hints: boolean;
 }
 
-export function ListeningFeed({ initial, serverNow, setupHint }: Props) {
+export function ListeningFeed({ initial, serverNow, hints }: Props) {
   const [result, setResult] = useState(initial);
   const { now, mounted } = useNow(serverNow, 30_000);
 
@@ -76,10 +78,10 @@ export function ListeningFeed({ initial, serverNow, setupHint }: Props) {
   }, [configured]);
 
   if (result.status === "missing-config") {
-    return <StateMessage hint={setupHint}>listening not configured</StateMessage>;
+    return <StateMessage hint={hint(describeFailure(result), hints)}>listening not configured</StateMessage>;
   }
   if (result.status === "unavailable") {
-    return <StateMessage>listening history unavailable</StateMessage>;
+    return <StateMessage hint={hint(describeFailure(result), hints)}>listening history unavailable</StateMessage>;
   }
 
   const { nowPlaying, listens } = result.data;

@@ -6,7 +6,7 @@ import type { Loaded, Repository } from "@/data/types";
 import { cleanText } from "@/lib/sanitize";
 import { toLoaded } from "@/lib/server/cache";
 import { serverEnv } from "@/lib/server/env";
-import { fetchUpstreamJson } from "@/lib/server/http";
+import { fetchUpstreamJson, UpstreamError } from "@/lib/server/http";
 
 const PER_PAGE = 100;
 /** Safety net against a runaway Link chain; 50 pages is 5,000 repositories. */
@@ -59,8 +59,7 @@ function hasNextPage(link: string | null): boolean {
   return link !== null && /<[^>]+>;\s*rel="next"/.test(link);
 }
 
-async function fetchAllRepositories(username: string): Promise<Repository[]> {
-  const token = serverEnv.githubToken;
+async function fetchAllRepositories(username: string, token: string | undefined): Promise<Repository[]> {
   const headers: Record<string, string> = {
     accept: "application/vnd.github+json",
     "x-github-api-version": "2022-11-28",
@@ -90,10 +89,28 @@ async function fetchAllRepositories(username: string): Promise<Repository[]> {
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
 }
 
+/**
+ * Public repositories need no credential. A token only raises the rate limit,
+ * and GitHub answers 401 to a bad one even on public endpoints, so a rejected
+ * token falls back to anonymous access instead of hiding every repository.
+ */
+async function fetchWithTokenFallback(username: string): Promise<Repository[]> {
+  const token = serverEnv.githubToken;
+  try {
+    return await fetchAllRepositories(username, token);
+  } catch (error) {
+    if (token && error instanceof UpstreamError && error.kind === "auth") {
+      console.warn("[github] GITHUB_TOKEN was rejected (401); listing public repositories without it");
+      return fetchAllRepositories(username, undefined);
+    }
+    throw error;
+  }
+}
+
 export function loadProjects(username: string = site.githubUsername): Promise<Loaded<Repository[]>> {
   return toLoaded({
     key: `github:repos:${username}`,
     ttlMs: cacheTtl.projects,
-    load: () => fetchAllRepositories(username),
+    load: () => fetchWithTokenFallback(username),
   });
 }

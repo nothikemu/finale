@@ -55,6 +55,16 @@ export const site = {
     kv: { bio: "bio", banner: "banner" } as { bio: string | null; banner: string | null },
   },
 
+  github: {
+    /**
+     * The calendar's primary source is GitHub's GraphQL API (needs GITHUB_TOKEN).
+     * If that is unavailable (no token, or a token GitHub rejects) the site falls
+     * back to the public contributions graph that github.com serves to anyone,
+     * which shows the same public data. Set to false to use GraphQL only.
+     */
+    publicCalendarFallback: true,
+  },
+
   /**
    * "auto" uses backdrop blur where supported. "opaque" forces solid panels
    * everywhere. Users who prefer reduced transparency always get solid panels.

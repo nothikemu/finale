@@ -4,9 +4,12 @@
  * credentials. It answers GitHub and ListenBrainz requests with deterministic
  * fixtures; it is never part of the application bundle or a production path.
  *
- * FIXTURE_MODE=ok         healthy upstreams (default)
- * FIXTURE_MODE=down       every upstream call fails with 500
- * FIXTURE_MODE=ratelimit  every upstream call answers 429 + Retry-After
+ * FIXTURE_MODE=ok            healthy upstreams (default)
+ * FIXTURE_MODE=down          every upstream call fails with 500
+ * FIXTURE_MODE=ratelimit     every upstream call answers 429 + Retry-After
+ * FIXTURE_MODE=badtoken      GitHub's API answers 401 "Bad credentials" to any request that
+ *                            carries a token (as the real API does), but serves anonymous ones
+ * FIXTURE_MODE=ok-no-public  healthy, except github.com's public contributions page is 404
  */
 
 const realFetch = globalThis.fetch;
@@ -17,7 +20,7 @@ const DAY = 86_400_000;
 let seed = 42;
 const random = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
 
-function calendar() {
+function calendarDays() {
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
   const start = new Date(today.getTime() - 364 * DAY);
@@ -37,7 +40,36 @@ function calendar() {
     }
     weeks.push({ contributionDays });
   }
+  return { total, weeks };
+}
+
+function calendar() {
+  const { total, weeks } = calendarDays();
   return { data: { user: { contributionsCollection: { contributionCalendar: { totalContributions: total, weeks } } } } };
+}
+
+const ordinal = (n) => `${n}${["th", "st", "nd", "rd"][(n % 100 >> 3) ^ 1 && n % 10 < 4 ? n % 10 : 0]}`;
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** The fragment github.com serves at /users/{login}/contributions: one <tr> per weekday, tooltips after the grid. */
+function publicCalendarHtml() {
+  const { total, weeks } = calendarDays();
+  const rows = Array.from({ length: 7 }, () => []);
+  const tips = [];
+  weeks.forEach((week, col) => {
+    for (const day of week.contributionDays) {
+      const row = new Date(`${day.date}T00:00:00Z`).getUTCDay();
+      const id = `contribution-day-component-${row}-${col}`;
+      const level = ["NONE", "FIRST_QUARTILE", "SECOND_QUARTILE", "THIRD_QUARTILE", "FOURTH_QUARTILE"].indexOf(day.contributionLevel);
+      rows[row].push(`<td tabindex="-1" data-ix="${col}" aria-selected="false" aria-describedby="contribution-graph-legend-level-${level}" style="width: 10px" data-date="${day.date}" id="${id}" data-level="${level}" role="gridcell" data-view-component="true" class="ContributionCalendar-day"></td>`);
+      const date = new Date(`${day.date}T00:00:00Z`);
+      const when = `${MONTHS[date.getUTCMonth()]} ${ordinal(date.getUTCDate())}`;
+      const text = day.contributionCount === 0 ? `No contributions on ${when}.` : `${day.contributionCount} contribution${day.contributionCount === 1 ? "" : "s"} on ${when}.`;
+      tips.push(`<tool-tip id="tooltip-${row}-${col}" for="${id}" popover="manual" data-direction="n" data-type="label" data-view-component="true" class="sr-only position-absolute">${text}</tool-tip>`);
+    }
+  });
+  const body = rows.map((cells, r) => `<tr style="height: 10px"><td class="ContributionCalendar-label" style="position: relative"><span class="sr-only">${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][r]}</span></td>${cells.join("")}</tr>`).join("");
+  return `<div class="js-yearly-contributions"><h2 id="js-contribution-activity-description" class="f4 text-normal mb-2">${total.toLocaleString("en-US")} contributions in the last year</h2><table class="ContributionCalendar-grid js-calendar-graph-table"><caption class="sr-only">Contribution Graph</caption><tbody>${body}</tbody></table>${tips.join("")}</div>`;
 }
 
 function repos(page) {
@@ -90,11 +122,27 @@ const json = (body, status = 200, headers = {}) =>
 globalThis.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
   const isGithub = url.hostname === "api.github.com";
+  const isGithubWeb = url.hostname === "github.com";
   const isListenBrainz = url.hostname === "api.listenbrainz.org";
-  if (!isGithub && !isListenBrainz) return realFetch(input, init);
+  const isLanyard = url.hostname === "api.lanyard.rest";
+  if (!isGithub && !isGithubWeb && !isListenBrainz && !isLanyard) return realFetch(input, init);
 
   if (mode === "down") return json({ message: "fixture outage" }, 500);
   if (mode === "ratelimit") return json({ message: "fixture rate limit" }, 429, { "retry-after": "120" });
+
+  // Like the real API, a bad token is refused even on public endpoints.
+  if (isGithub && mode === "badtoken" && new Headers(init?.headers).get("authorization")) return json({ message: "Bad credentials" }, 401);
+
+  if (isLanyard) {
+    const id = url.pathname.split("/").pop();
+    return id === "100000000000000001"
+      ? json({ success: true, data: { discord_status: "online", kv: { bio: "fixture bio" }, discord_user: { id, username: "fixture_user" }, activities: [] } })
+      : json({ success: false, error: { code: "user_not_monitored", message: "User is not being monitored by Lanyard" } }, 404);
+  }
+  if (isGithubWeb) {
+    if (mode === "ok-no-public" || url.pathname !== "/users/nothikemu/contributions") return new Response("Not Found", { status: 404 });
+    return new Response(publicCalendarHtml(), { status: 200, headers: { "content-type": "text/html; charset=utf-8" } });
+  }
 
   if (isGithub && url.pathname === "/graphql") return json(calendar());
   if (isGithub && url.pathname === "/users/nothikemu/repos") {

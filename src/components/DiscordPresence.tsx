@@ -4,7 +4,7 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { getLanyardHandle, INITIAL_LANYARD_STATE } from "@/data/discord/lanyard-store";
 import { resolveBanner, resolveBio } from "@/data/discord/profile";
 import type { ActivityView, DiscordPresence as Presence, DiscordStatus, SpotifyActivity } from "@/data/discord/types";
-import { devHint } from "@/lib/dev-hint";
+import { hint } from "@/lib/dev-hint";
 import { formatClock } from "@/lib/format";
 import { useNow } from "@/lib/use-now";
 import { Artwork } from "./Artwork";
@@ -18,6 +18,8 @@ interface Props {
   fallbackBio: string | null;
   /** Owner-approved Lanyard KV keys for bio and banner. */
   kv: { bio: string | null; banner: string | null };
+  /** Whether owner-facing hints are shown (development, or SHOW_DIAGNOSTICS=1). */
+  hints: boolean;
 }
 
 const STATUS_LABEL: Record<DiscordStatus, string> = {
@@ -35,7 +37,7 @@ const ACTIVITY_VERB = {
   competing: "competing in",
 } as const;
 
-export function DiscordPresence({ userId, bannerUrl, fallbackBio, kv }: Props) {
+export function DiscordPresence({ userId, bannerUrl, fallbackBio, kv, hints }: Props) {
   const { bio: kvBioKey, banner: kvBannerKey } = kv;
   const handle = useMemo(() => getLanyardHandle(userId, { kv: { bio: kvBioKey, banner: kvBannerKey } }), [userId, kvBioKey, kvBannerKey]);
   useEffect(() => handle.retain(), [handle]);
@@ -62,9 +64,9 @@ export function DiscordPresence({ userId, bannerUrl, fallbackBio, kv }: Props) {
       </div>
 
       {state.notTracked ? (
-        <Message text="presence not tracked" hint={devHint("this account is not monitored by lanyard yet (see README)")} />
+        <Message text="presence not tracked" hint={hint("this Discord account is not tracked by Lanyard: join https://discord.gg/lanyard with it (see README)", hints)} />
       ) : presence === null ? (
-        state.failed ? <Message text="presence unavailable" hint={devHint("could not reach lanyard")} /> : <PresenceSkeleton />
+        state.failed ? <Message text="presence unavailable" hint={hint("the browser could not reach api.lanyard.rest (blocked network, extension or firewall?). open the browser console for details", hints)} /> : <PresenceSkeleton />
       ) : (
         <>
           <Identity presence={presence} />

@@ -97,6 +97,18 @@ describe("lanyard store", () => {
     store.stop();
   });
 
+  it("accepts a presence keyed by user ID, as a multi-user reply sends it", async () => {
+    const store = makeStore(restDown);
+    store.start();
+    const socket = FakeSocket.instances[0]!;
+    socket.emit({ op: 0, t: "INIT_STATE", d: { [ID]: presenceData("idle") } });
+    expect(store.getSnapshot().presence?.status).toBe("idle");
+    // a key for some other user must not be mistaken for ours
+    socket.emit({ op: 0, t: "PRESENCE_UPDATE", d: { "999999999999999999": presenceData("dnd") } });
+    expect(store.getSnapshot().presence?.status).toBe("idle");
+    store.stop();
+  });
+
   it("ignores malformed frames and invalid presence payloads", async () => {
     const store = makeStore(restDown);
     store.start();

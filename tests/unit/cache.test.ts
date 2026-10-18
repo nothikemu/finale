@@ -71,11 +71,12 @@ describe("toLoaded", () => {
     expect(missing).toEqual({ status: "missing-config", missing: ["GITHUB_TOKEN"] });
 
     const down = await toLoaded({ key: "b", ttlMs: 1, load: async () => { throw new UpstreamError("auth", "svc", 401); } });
-    expect(down).toEqual({ status: "unavailable", reason: "auth" });
+    expect(down).toEqual({ status: "unavailable", reason: "auth", detail: "svc: auth (401)" });
 
     const unknown = await toLoaded({ key: "c", ttlMs: 1, load: async () => { throw new Error("token=SECRET123"); } });
     expect(JSON.stringify(unknown)).not.toContain("SECRET123");
-    expect(unknown).toEqual({ status: "unavailable", reason: "upstream" });
+    // an arbitrary error is reduced to its cache key: its own message is never forwarded
+    expect(unknown).toEqual({ status: "unavailable", reason: "upstream", detail: "c: upstream" });
   });
 
   it("reports ok with the stale flag", async () => {

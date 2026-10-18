@@ -123,6 +123,14 @@ export async function fetchUpstream(url: string, options: FetchOptions): Promise
   throw lastError ?? new UpstreamError("network", service);
 }
 
+/** Like fetchUpstreamJson, for HTML. Bodies over `maxBytes` are rejected rather than buffered. */
+export async function fetchUpstreamText(url: string, options: FetchOptions, maxBytes = 2_000_000): Promise<string> {
+  const response = await fetchUpstream(url, options);
+  const text = await response.text().catch(() => "");
+  if (!text || text.length > maxBytes) throw new UpstreamError("invalid-response", options.service, response.status);
+  return text;
+}
+
 export async function fetchUpstreamJson(url: string, options: FetchOptions): Promise<{ json: unknown; headers: Headers }> {
   const response = await fetchUpstream(url, options);
   try {

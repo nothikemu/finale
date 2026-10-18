@@ -32,6 +32,10 @@ export const serverEnv = {
   get profileBio() {
     return read("PROFILE_BIO");
   },
+  /** Opt in to showing setup/failure hints in production builds too. */
+  get showDiagnostics() {
+    return /^(1|true|yes|on)$/i.test(process.env.SHOW_DIAGNOSTICS?.trim() ?? "");
+  },
 };
 
 export class MissingConfigError extends Error {

@@ -3,7 +3,7 @@ import { isSnowflake } from "@/data/discord/assets";
 import { safeHttpsUrl, cleanMultiline } from "@/lib/sanitize";
 import { serverEnv, warnOnce } from "@/lib/server/env";
 import { DiscordPresence } from "./DiscordPresence";
-import { devHint } from "./Panel";
+import { hintsEnabled, ownerHint } from "@/lib/server/diagnostics";
 
 /**
  * Server shell: decides whether presence can be tracked at all. The owner's
@@ -17,13 +17,13 @@ export function DiscordPresencePanel() {
 
   if (!userId) {
     warnOnce("discord-id", "DISCORD_USER_ID is not set; the Discord presence panel shows its setup state.");
-    return <DiscordShell state="missing-config" hint={devHint("set DISCORD_USER_ID (see README)")} bannerUrl={bannerUrl} />;
+    return <DiscordShell state="missing-config" hint={ownerHint("set DISCORD_USER_ID (see README)")} bannerUrl={bannerUrl} />;
   }
   if (!isSnowflake(userId)) {
     warnOnce("discord-id-invalid", "DISCORD_USER_ID must be a numeric Discord user ID.");
-    return <DiscordShell state="invalid-config" hint={devHint("DISCORD_USER_ID must be numeric (see README)")} bannerUrl={bannerUrl} />;
+    return <DiscordShell state="invalid-config" hint={ownerHint("DISCORD_USER_ID must be numeric (see README)")} bannerUrl={bannerUrl} />;
   }
-  return <DiscordPresence userId={userId} bannerUrl={bannerUrl} fallbackBio={fallbackBio} kv={site.discord.kv} />;
+  return <DiscordPresence userId={userId} bannerUrl={bannerUrl} fallbackBio={fallbackBio} kv={site.discord.kv} hints={hintsEnabled()} />;
 }
 
 function DiscordShell({ state, hint, bannerUrl }: { state: "missing-config" | "invalid-config"; hint?: string; bannerUrl: string | null }) {

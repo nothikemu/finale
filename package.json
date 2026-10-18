@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "next build && playwright test",
-    "fonts": "python3 -I scripts/build-fonts.py"
+    "fonts": "python3 -I scripts/build-fonts.py",
+    "doctor": "node scripts/doctor.mjs"
   },
   "dependencies": {
     "next": "16.4.2",

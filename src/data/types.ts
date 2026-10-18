@@ -6,7 +6,12 @@ export type UnavailableReason = "rate-limited" | "auth" | "network" | "upstream"
 export type Loaded<T> =
   | { status: "ok"; data: T; fetchedAt: number; stale: boolean }
   | { status: "missing-config"; missing: string[] }
-  | { status: "unavailable"; reason: UnavailableReason };
+  | {
+      status: "unavailable";
+      reason: UnavailableReason;
+      /** Which service failed and how, e.g. "github-graphql: auth (401)". Never contains credentials. */
+      detail?: string;
+    };
 
 export interface Track {
   /** Stable React key. */

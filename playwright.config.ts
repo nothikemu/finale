@@ -8,8 +8,11 @@ import { FAKE_SECRETS, TEST_DISCORD_ID } from "./tests/e2e/constants";
  * access or real credentials:
  *
  *   3101  healthy upstreams (fixtures) and every secret configured
- *   3102  healthy upstreams, but no Discord ID / ListenBrainz / GitHub token
- *   3103  every GitHub and ListenBrainz call fails
+ *   3102  nothing configured, and github.com's public contributions page is blocked
+ *   3103  every GitHub and ListenBrainz call fails (production defaults)
+ *   3104  a GITHUB_TOKEN that GitHub rejects with 401, owner diagnostics on
+ *   3105  every call fails and SHOW_DIAGNOSTICS=1, so panels explain why
+ *   3106  no credentials at all, but GitHub's public pages work
  *
  * The upstream fixtures live in tests/e2e/fixtures and are preloaded into the
  * server process with NODE_OPTIONS. They are test-only; see that file.
@@ -18,7 +21,7 @@ import { FAKE_SECRETS, TEST_DISCORD_ID } from "./tests/e2e/constants";
 
 const preload = `--import ${path.join(__dirname, "tests/e2e/fixtures/upstream-preload.mjs")}`;
 
-const blank = { DISCORD_USER_ID: "", LISTENBRAINZ_TOKEN: "", LISTENBRAINZ_USERNAME: "", GITHUB_TOKEN: "", PROFILE_BANNER_URL: "", PROFILE_BIO: "" };
+const blank = { DISCORD_USER_ID: "", LISTENBRAINZ_TOKEN: "", LISTENBRAINZ_USERNAME: "", GITHUB_TOKEN: "", PROFILE_BANNER_URL: "", PROFILE_BIO: "", SHOW_DIAGNOSTICS: "" };
 
 function server(port: number, env: Record<string, string>) {
   return {
@@ -44,12 +47,27 @@ export default defineConfig({
       LISTENBRAINZ_TOKEN: FAKE_SECRETS.LISTENBRAINZ_TOKEN,
       PROFILE_BIO: "owner-supplied bio fallback",
     }),
-    server(3102, { FIXTURE_MODE: "ok" }),
+    server(3102, { FIXTURE_MODE: "ok-no-public" }),
     server(3103, {
       FIXTURE_MODE: "down",
       DISCORD_USER_ID: TEST_DISCORD_ID,
       GITHUB_TOKEN: FAKE_SECRETS.GITHUB_TOKEN,
       LISTENBRAINZ_TOKEN: FAKE_SECRETS.LISTENBRAINZ_TOKEN,
     }),
+    server(3104, {
+      FIXTURE_MODE: "badtoken",
+      DISCORD_USER_ID: TEST_DISCORD_ID,
+      GITHUB_TOKEN: FAKE_SECRETS.GITHUB_TOKEN,
+      LISTENBRAINZ_TOKEN: FAKE_SECRETS.LISTENBRAINZ_TOKEN,
+      SHOW_DIAGNOSTICS: "1",
+    }),
+    server(3105, {
+      FIXTURE_MODE: "down",
+      DISCORD_USER_ID: TEST_DISCORD_ID,
+      GITHUB_TOKEN: FAKE_SECRETS.GITHUB_TOKEN,
+      LISTENBRAINZ_TOKEN: FAKE_SECRETS.LISTENBRAINZ_TOKEN,
+      SHOW_DIAGNOSTICS: "1",
+    }),
+    server(3106, { FIXTURE_MODE: "ok" }),
   ],
 });

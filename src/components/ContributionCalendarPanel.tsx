@@ -5,7 +5,8 @@ import type { ContributionCalendar } from "@/data/types";
 import { CELL, layoutCalendar, PITCH, ROWS } from "@/lib/calendar";
 import { formatCalendarDate, formatCount, formatMonth, pluralize } from "@/lib/format";
 import { CalendarInteractive } from "./CalendarInteractive";
-import { Panel, StateMessage, devHint } from "./Panel";
+import { failureHint } from "@/lib/server/diagnostics";
+import { Panel, StateMessage } from "./Panel";
 
 const WEEKDAY_LABELS = [
   { row: 1, text: "mon" },
@@ -27,10 +28,10 @@ async function CalendarContent() {
   const result = await loadContributions(site.githubUsername);
 
   if (result.status === "missing-config") {
-    return <StateMessage hint={devHint(`set ${result.missing.join(", ")} (see README)`)}>github activity not configured</StateMessage>;
+    return <StateMessage hint={failureHint(result)}>github activity not configured</StateMessage>;
   }
   if (result.status === "unavailable") {
-    return <StateMessage>github activity unavailable</StateMessage>;
+    return <StateMessage hint={failureHint(result)}>github activity unavailable</StateMessage>;
   }
   return <Calendar calendar={result.data} stale={result.stale} />;
 }

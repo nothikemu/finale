@@ -6,6 +6,7 @@ import type { ContributionCalendar, ContributionDay, ContributionLevel, Loaded }
 import { toLoaded } from "@/lib/server/cache";
 import { MissingConfigError, serverEnv, warnOnce } from "@/lib/server/env";
 import { fetchUpstreamJson, UpstreamError } from "@/lib/server/http";
+import { fetchPublicCalendar } from "./public-calendar";
 
 const QUERY = `query ContributionCalendar($login: String!) {
   user(login: $login) {
@@ -88,12 +89,7 @@ export function normalizeCalendar(payload: unknown): ContributionCalendar {
   return { total: calendar.totalContributions, weeks, from: first.date, to: last.date };
 }
 
-async function fetchCalendar(username: string): Promise<ContributionCalendar> {
-  const token = serverEnv.githubToken;
-  if (!token) {
-    warnOnce("github-token", "GITHUB_TOKEN is not set; the contribution calendar is unavailable.");
-    throw new MissingConfigError(["GITHUB_TOKEN"]);
-  }
+async function fetchGraphql(username: string, token: string): Promise<ContributionCalendar> {
   const { json } = await fetchUpstreamJson("https://api.github.com/graphql", {
     service: "github-graphql",
     init: {
@@ -103,6 +99,41 @@ async function fetchCalendar(username: string): Promise<ContributionCalendar> {
     },
   });
   return normalizeCalendar(json);
+}
+
+/**
+ * GraphQL when a token is configured; otherwise (or when GitHub rejects the
+ * token) the public contributions graph, so the calendar still shows the same
+ * public data. Without a token, and without the fallback, it is "not configured".
+ */
+async function fetchCalendar(username: string): Promise<ContributionCalendar> {
+  const token = serverEnv.githubToken;
+  let primaryError: UpstreamError | undefined;
+
+  if (token) {
+    try {
+      return await fetchGraphql(username, token);
+    } catch (error) {
+      if (!(error instanceof UpstreamError)) throw error;
+      // A rate limit applies to the public page too; everything else may succeed there.
+      if (error.kind === "rate-limited" || !site.github.publicCalendarFallback) throw error;
+      primaryError = error;
+      console.warn(`[github] GraphQL calendar failed (${error.message}); trying the public contributions graph`);
+    }
+  } else {
+    warnOnce("github-token", "GITHUB_TOKEN is not set; the calendar uses the public contributions graph if it can.");
+  }
+
+  if (site.github.publicCalendarFallback) {
+    try {
+      return await fetchPublicCalendar(username);
+    } catch (error) {
+      if (!(error instanceof UpstreamError)) throw error;
+      if (!token) throw new MissingConfigError(["GITHUB_TOKEN"]);
+      throw primaryError ?? error;
+    }
+  }
+  throw new MissingConfigError(["GITHUB_TOKEN"]);
 }
 
 export function loadContributions(username: string = site.githubUsername): Promise<Loaded<ContributionCalendar>> {

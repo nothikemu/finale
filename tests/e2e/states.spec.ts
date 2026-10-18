@@ -58,7 +58,11 @@ test.describe("upstream outage", () => {
     for (const path of ["/api/listening", "/api/github/projects", "/api/github/contributions"]) {
       const response = await request.get(path);
       expect(response.status()).toBe(502);
-      expect(await response.json()).toEqual({ status: "unavailable", reason: "upstream" });
+      // typed and safe: which service failed and how, never a credential or upstream body
+      const body = await response.json();
+      expect(body).toMatchObject({ status: "unavailable", reason: "upstream" });
+      expect(body.detail).toMatch(/^[a-z:.-]+: upstream( \(\d+\))?$/);
+      expect(JSON.stringify(body)).not.toContain(FAKE_SECRETS.GITHUB_TOKEN);
       expect(response.headers()["cache-control"]).toBe("no-store");
     }
   });
