@@ -29,8 +29,8 @@ Set these in `.env.local` for development and in your host's secret manager for 
 | Variable | Needed for | Secret? | Notes |
 | --- | --- | --- | --- |
 | `DISCORD_USER_ID` | Discord panel | No (public ID) | Numeric Discord user ID. Not inferred from the GitHub username; there is no default. |
-| `LISTENBRAINZ_TOKEN` | Recently played | **Yes, server only** | Used once (cached 6 h) to resolve your username via `GET /1/validate-token`. Never sent to the browser. |
-| `LISTENBRAINZ_USERNAME` | Recently played | No | Optional. If set, token validation is skipped and this username is used directly. |
+| `LISTENBRAINZ_USERNAME` | Recently played | No | Your ListenBrainz username. Recommended: public listens need no token. |
+| `LISTENBRAINZ_TOKEN` | Recently played | **Yes, server only** | Alternative to the username: used once (cached 6 h) to resolve it via `GET /1/validate-token`. Never sent to the browser. |
 | `GITHUB_TOKEN` | Contribution calendar (required), projects (optional, raises rate limit) | **Yes, server only** | See below for the least-privilege setup. |
 | `SHOW_DIAGNOSTICS` | Troubleshooting | No | Set to `1` to show owner-only hints inside failing panels of a production build (they always show in `npm run dev`). |
 | `PROFILE_BANNER_URL` | Discord banner | No | Optional `https://` image. Last-resort fallback: used only if Lanyard returns no banner and the `banner` KV key is empty. |
@@ -54,11 +54,13 @@ What Lanyard does **not** guarantee, and how the panel handles it honestly:
 
 ### ListenBrainz
 
-ListenBrainz is not a direct Spotify-history endpoint. Your Spotify listening must already be flowing into ListenBrainz: connect Spotify under **ListenBrainz → Settings → Connect services** (or import your history). Then copy your user token from <https://listenbrainz.org/settings/>.
+ListenBrainz is not a direct Spotify-history endpoint. Your Spotify listening must already be flowing into ListenBrainz: connect Spotify under **ListenBrainz → Settings → Connect services** (or import your history).
+
+**Simplest and safest: set `LISTENBRAINZ_USERNAME` to your ListenBrainz username.** Public listens need no token, so there is nothing secret to protect. Alternatively set `LISTENBRAINZ_TOKEN` (from <https://listenbrainz.org/settings/>); the server uses it once (cached 6 h) to look up your username via `GET /1/validate-token` and never sends it to the browser. If both are set, the username wins and the token is not used.
 
 The panel fetches `GET /1/user/{name}/listens?count=50` (cached 60 s) and optionally `/playing-now` (cached 20 s; the client refreshes every 30 s while the page is visible). If ListenBrainz marks listens with Spotify-origin metadata, only those are shown; otherwise all listens are shown under the neutral "recently played / via listenbrainz" labels and no listen is claimed to be Spotify.
 
-> **Reset your ListenBrainz token.** If it was ever pasted into a prompt, issue or chat it is compromised. Reset it at <https://listenbrainz.org/settings/> and enter the new one only in your secret manager.
+> **Treat any token that was ever pasted into a chat, prompt, issue or commit as compromised.** Reset it at <https://listenbrainz.org/settings/> and enter the new one only in your secret manager, or switch to `LISTENBRAINZ_USERNAME` and stop using a token at all.
 
 ### GitHub
 
@@ -186,7 +188,7 @@ The automated tests use fixtures for GitHub and ListenBrainz and a mocked Lanyar
 ## Setup checklist
 
 1. `DISCORD_USER_ID`, and joining the Lanyard server so the account is tracked.
-2. `LISTENBRAINZ_TOKEN` (reset first, per the note above) in the deployment's secret manager, and Spotify connected to ListenBrainz.
+2. `LISTENBRAINZ_USERNAME` (no secret needed; or a freshly reset `LISTENBRAINZ_TOKEN` in the deployment's secret manager), and Spotify connected to ListenBrainz.
 3. `GITHUB_TOKEN`: fine-grained, public repositories read-only.
 4. To show a banner and bio: set the `banner` and `bio` keys in Lanyard KV (see the Discord section), or use the `PROFILE_BANNER_URL` / `PROFILE_BIO` fallbacks.
 

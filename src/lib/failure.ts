@@ -13,7 +13,10 @@ const FIXES: Record<string, string> = {
  * service and status only, never a credential. Safe to use in client code.
  */
 export function describeFailure(result: Loaded<unknown>): string | undefined {
-  if (result.status === "missing-config") return `set ${result.missing.join(", ")} (see README)`;
+  if (result.status === "missing-config") {
+    // several entries mean any one of them is enough (e.g. a ListenBrainz username or token)
+    return result.missing.length > 1 ? `set ${result.missing.join(" or ")} (see README)` : `set ${result.missing[0]} (see README)`;
+  }
   if (result.status !== "unavailable") return undefined;
   const detail = result.detail ? `${result.detail}: ` : "";
   return `${detail}${FIXES[result.reason] ?? "unknown failure"}. open the /api routes or run npm run doctor`;

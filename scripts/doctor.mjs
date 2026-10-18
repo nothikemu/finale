@@ -58,11 +58,11 @@ if (!has("DISCORD_USER_ID")) {
   fail("DISCORD_USER_ID is set but is not a numeric Discord ID", "copy your User ID from Discord (Settings > Advanced > Developer Mode, then right-click your profile > Copy User ID)");
 }
 
-if (has("LISTENBRAINZ_USERNAME")) ok("LISTENBRAINZ_USERNAME is set (the token is not needed to find your username)");
+if (has("LISTENBRAINZ_USERNAME")) ok("LISTENBRAINZ_USERNAME is set (no token is needed to read public listens)");
 else if (has("LISTENBRAINZ_TOKEN")) {
   if (/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(lbToken)) ok("LISTENBRAINZ_TOKEN is set and has the expected format");
   else warn("LISTENBRAINZ_TOKEN is set but is not in the usual UUID format; it may have been copied incorrectly");
-} else fail("neither LISTENBRAINZ_TOKEN nor LISTENBRAINZ_USERNAME is set: the listening panel will say 'listening not configured'", "set LISTENBRAINZ_TOKEN from https://listenbrainz.org/settings/");
+} else fail("neither LISTENBRAINZ_TOKEN nor LISTENBRAINZ_USERNAME is set: the listening panel will say 'listening not configured'", "set LISTENBRAINZ_USERNAME=<your ListenBrainz username> (simplest, nothing secret); a LISTENBRAINZ_TOKEN from https://listenbrainz.org/settings/ also works");
 
 if (has("GITHUB_TOKEN")) {
   if (/^(github_pat_[A-Za-z0-9_]{60,}|gh[pousr]_[A-Za-z0-9]{30,})$/.test(ghToken)) ok("GITHUB_TOKEN is set and has the expected format");

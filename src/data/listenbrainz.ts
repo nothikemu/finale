@@ -145,8 +145,8 @@ async function resolveUsername(): Promise<string> {
   }
   const token = serverEnv.listenbrainzToken;
   if (!token) {
-    warnOnce("lb-token", "LISTENBRAINZ_TOKEN is not set; recent listening is unavailable.");
-    throw new MissingConfigError(["LISTENBRAINZ_TOKEN"]);
+    warnOnce("lb-token", "Neither LISTENBRAINZ_USERNAME nor LISTENBRAINZ_TOKEN is set; recent listening is unavailable.");
+    throw new MissingConfigError(["LISTENBRAINZ_USERNAME", "LISTENBRAINZ_TOKEN"]);
   }
   const result = await cached({
     key: "listenbrainz:username",
