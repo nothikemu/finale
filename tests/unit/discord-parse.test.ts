@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { avatarUrl, resolveActivityImage, spotifyThumbnail } from "@/data/discord/assets";
 import { badgesFromPublicFlags } from "@/data/discord/badges";
 import { parseLanyardPresence } from "@/data/discord/parse";
+import { resolveBanner, resolveBio } from "@/data/discord/profile";
 
 const ID = "100000000000000001"; // test fixture, not the owner's ID
 
@@ -109,8 +110,12 @@ describe("parseLanyardPresence", () => {
     expect(parseLanyardPresence(presence({ kv: { banner: "javascript:alert(1)" } }), keys)?.user.bannerUrl).toBeNull();
     expect(parseLanyardPresence(presence({ kv: { banner: "https://user:pw@example.com/b.png" } }), keys)?.user.bannerUrl).toBeNull();
     expect(parseLanyardPresence(presence({ kv: { banner: 42 } }), keys)?.user.bannerUrl).toBeNull();
-    // keys must be plain identifiers, so a hostile config value cannot reach into prototypes
+    // keys must be plain identifiers that KV itself defines: inherited members are never read
     expect(parseLanyardPresence(presence({ kv: { bio: "x" } }), { kv: { bio: "__proto__" } })?.kvBio).toBeNull();
+    expect(parseLanyardPresence(presence({ kv: { bio: "x" } }), { kv: { bio: "constructor" } })?.kvBio).toBeNull();
+    // even a payload that defines its own "__proto__" key is not readable through it
+    const hostile = JSON.parse('{"__proto__":"pwn"}');
+    expect(parseLanyardPresence(presence({ kv: hostile }), { kv: { bio: "__proto__" } })?.kvBio).toBeNull();
     expect(parseLanyardPresence(presence({ kv: { "a b": "x" } }), { kv: { bio: "a b" } })?.kvBio).toBeNull();
   });
 
@@ -163,5 +168,45 @@ describe("badgesFromPublicFlags", () => {
     expect(badgesFromPublicFlags(0)).toEqual([]);
     expect(badgesFromPublicFlags(undefined)).toEqual([]);
     expect(badgesFromPublicFlags(1 << 10)).toEqual([]);
+  });
+});
+
+describe("profile precedence (bio and banner)", () => {
+  const FALLBACK_BIO = "from PROFILE_BIO";
+  const FALLBACK_BANNER = "https://env.example/banner.png";
+  const kv = { kv: { bio: "bio", banner: "banner" } };
+  const withUser = (extra: Record<string, unknown>, kvData: Record<string, unknown> = {}) => {
+    const raw = presence({ kv: kvData });
+    Object.assign(raw.discord_user, extra);
+    return parseLanyardPresence(raw, kv);
+  };
+
+  it("bio: Lanyard's own value beats KV, KV beats the env fallback, the env fallback beats nothing", () => {
+    expect(resolveBio(withUser({ bio: "from lanyard" }, { bio: "from kv" }), FALLBACK_BIO)).toBe("from lanyard");
+    expect(resolveBio(withUser({}, { bio: "from kv" }), FALLBACK_BIO)).toBe("from kv");
+    expect(resolveBio(withUser({}, {}), FALLBACK_BIO)).toBe(FALLBACK_BIO);
+    expect(resolveBio(withUser({}, {}), null)).toBeNull();
+    // before presence arrives only the owner fallback can be shown
+    expect(resolveBio(null, FALLBACK_BIO)).toBe(FALLBACK_BIO);
+  });
+
+  it("bio: blank or non-string KV values fall through to the next source", () => {
+    expect(resolveBio(withUser({}, { bio: "   " }), FALLBACK_BIO)).toBe(FALLBACK_BIO);
+    expect(resolveBio(withUser({}, { bio: 7 }), FALLBACK_BIO)).toBe(FALLBACK_BIO);
+  });
+
+  it("bio: custom status is never used as the bio", () => {
+    const raw = presence({ activities: [{ id: "c", type: 4, name: "Custom Status", state: "i am a status" }] });
+    expect(resolveBio(parseLanyardPresence(raw, kv), null)).toBeNull();
+  });
+
+  it("banner: Lanyard's own banner beats KV, KV beats the env fallback, an unsafe KV banner falls through", () => {
+    const kvBanner = { banner: "https://kv.example/banner.png" };
+    expect(resolveBanner(withUser({ banner: "d".repeat(32) }, kvBanner), FALLBACK_BANNER)).toContain("cdn.discordapp.com/banners/");
+    expect(resolveBanner(withUser({}, kvBanner), FALLBACK_BANNER)).toBe("https://kv.example/banner.png");
+    expect(resolveBanner(withUser({}, { banner: "http://kv.example/insecure.png" }), FALLBACK_BANNER)).toBe(FALLBACK_BANNER);
+    expect(resolveBanner(withUser({}, {}), FALLBACK_BANNER)).toBe(FALLBACK_BANNER);
+    expect(resolveBanner(withUser({}, {}), null)).toBeNull();
+    expect(resolveBanner(null, FALLBACK_BANNER)).toBe(FALLBACK_BANNER);
   });
 });

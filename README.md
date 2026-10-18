@@ -123,7 +123,7 @@ Run in the development sandbox on 2026-10-18 (Chromium via Playwright, Node 22):
 
 | Check | Result |
 | --- | --- |
-| Unit tests | 59 passed |
+| Unit tests | 63 passed |
 | End-to-end tests | 90 passed (layout, content, interaction, states, security, accessibility) |
 | ESLint, `tsc --noEmit`, production `next build` | clean |
 | `npm audit --omit=dev` | 0 vulnerabilities (dev-only advisories exist in test tooling) |

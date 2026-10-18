@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { getLanyardHandle, INITIAL_LANYARD_STATE } from "@/data/discord/lanyard-store";
+import { resolveBanner, resolveBio } from "@/data/discord/profile";
 import type { ActivityView, DiscordPresence as Presence, DiscordStatus, SpotifyActivity } from "@/data/discord/types";
 import { formatClock } from "@/lib/format";
 import { useNow } from "@/lib/use-now";
@@ -41,8 +42,8 @@ export function DiscordPresence({ userId, bannerUrl, fallbackBio, kv }: Props) {
 
   const { presence } = state;
   // Bio and banner precedence: what Lanyard genuinely returned, then the approved KV key, then the owner's PROFILE_* fallback.
-  const bio = presence ? (presence.user.bio ?? presence.kvBio ?? fallbackBio) : fallbackBio;
-  const banner = presence?.user.bannerUrl ?? bannerUrl;
+  const bio = resolveBio(presence, fallbackBio);
+  const banner = resolveBanner(presence, bannerUrl);
   const hasTimers = Boolean(presence?.spotify?.start || presence?.activities.some((a) => a.start));
   const { now } = useNow(null, 1000, hasTimers);
 

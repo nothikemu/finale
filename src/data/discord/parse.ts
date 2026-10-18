@@ -93,8 +93,10 @@ export interface ParseOptions {
 
 const KV_KEY = /^[A-Za-z0-9_]{1,255}$/;
 
+/** Reads one approved key from KV, and only if KV itself defines it (never an inherited member). */
 function kvValue(kv: UnknownRecord | null, key: string | null | undefined): unknown {
-  return key && KV_KEY.test(key) ? kv?.[key] : undefined;
+  if (!kv || !key || key === "__proto__" || !KV_KEY.test(key)) return undefined;
+  return Object.hasOwn(kv, key) ? kv[key] : undefined;
 }
 
 /**
