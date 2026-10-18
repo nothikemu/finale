@@ -1,0 +1,694 @@
+/* Panel-specific layout. Shared shell and states live in panel.css. */
+
+/* ---- socials ------------------------------------------------------------ */
+
+.links {
+  display: grid;
+  gap: 10px;
+}
+
+.link-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 12px;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px; /* comfortable touch target */
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  transition:
+    color var(--t-link) var(--ease),
+    border-color var(--t-link) var(--ease),
+    background-color var(--t-link) var(--ease);
+}
+
+.link-row__icon {
+  display: grid;
+  transition: transform var(--t-link) var(--ease);
+}
+
+.link-row__text {
+  display: grid;
+  min-width: 0;
+  line-height: 1.5;
+}
+
+.link-row__label {
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.link-row__handle {
+  justify-self: start;
+  color: var(--text-primary);
+  background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat;
+  transition: background-size var(--t-link) var(--ease);
+  overflow-wrap: anywhere;
+}
+
+.link-row__external {
+  display: grid;
+  opacity: 0.55;
+}
+
+.link-row:hover,
+.link-row:focus-visible {
+  color: var(--text-primary);
+  border-color: var(--border-active);
+  background-color: var(--fill-hover);
+}
+
+.link-row:hover .link-row__icon,
+.link-row:focus-visible .link-row__icon {
+  transform: translateX(2px);
+}
+
+.link-row:hover .link-row__handle,
+.link-row:focus-visible .link-row__handle {
+  background-size: 100% 1px;
+}
+
+/* ---- artwork (listening + discord) ------------------------------------- */
+
+.art {
+  position: relative;
+  display: block;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  /* monochrome checker fallback shown when there is no (or failed) artwork */
+  background-color: var(--fill-subtle);
+  background-image:
+    linear-gradient(45deg, rgba(244, 241, 236, 0.08) 25%, transparent 25%, transparent 75%, rgba(244, 241, 236, 0.08) 75%),
+    linear-gradient(45deg, rgba(244, 241, 236, 0.08) 25%, transparent 25%, transparent 75%, rgba(244, 241, 236, 0.08) 75%);
+  background-size: 8px 8px;
+  background-position:
+    0 0,
+    4px 4px;
+}
+
+.art img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---- recently played ---------------------------------------------------- */
+
+.tracks .track {
+  border-top: 1px solid var(--border-faint);
+}
+
+.tracks .track:first-child {
+  border-top: 0;
+}
+
+.track {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.track__text {
+  display: grid;
+  min-width: 0;
+}
+
+.track__title {
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.track__title a:hover,
+.track__title a:focus-visible,
+.activity__title a:hover,
+.activity__title a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.track__external {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--text-muted);
+}
+
+.track__artist {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.track__time {
+  align-self: start;
+  margin-top: 6px;
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.now-playing {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  background: var(--fill-subtle);
+}
+
+.now-playing__label {
+  margin-bottom: 4px;
+  font-size: var(--fs-meta);
+  letter-spacing: var(--tracking-heading);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.now-playing .track {
+  grid-template-columns: 44px minmax(0, 1fr);
+  padding: 4px 0 0;
+}
+
+/* ---- projects ----------------------------------------------------------- */
+
+.project {
+  padding: 14px 0;
+  border-top: 1px solid var(--border-faint);
+}
+
+.project:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.project__name {
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.project__name:hover,
+.project__name:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.project__external {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--text-muted);
+}
+
+.project__flags {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 8px;
+  vertical-align: 1px;
+}
+
+.project__description {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.project__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 14px;
+  margin-top: 8px;
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+}
+
+.project__meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ---- about -------------------------------------------------------------- */
+
+.about {
+  display: grid;
+  gap: 20px;
+  font-size: var(--fs-about);
+  line-height: 1.75;
+}
+
+.about__line {
+  color: var(--text-primary);
+}
+
+/* ---- github activity ---------------------------------------------------- */
+
+/* the activity panel body is a flex column so the calendar can be centred in the free space */
+.panel--activity .panel__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.calendar__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 16px;
+}
+
+.calendar__total {
+  color: var(--text-secondary);
+}
+
+.calendar__number {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.calendar__range,
+.calendar__legend {
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+}
+
+/* auto margins centre the calendar between the summary and the legend */
+.calendar__interactive {
+  min-width: 0;
+  margin-block: auto;
+}
+
+/*
+ * Horizontal scrolling lives inside the panel. direction: rtl makes the
+ * scroller start at its right edge, so narrow screens open on the most recent
+ * weeks; the grid itself is switched back to ltr.
+ */
+.calendar__scroll {
+  direction: rtl;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-active) transparent;
+}
+
+.calendar__grid {
+  direction: ltr;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-rows: 18px auto;
+  min-width: 700px; /* keeps cells readable; below this the panel scrolls */
+  max-width: 900px;
+  margin-inline: auto;
+  padding: 3px;
+}
+
+.calendar__weekdays {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  grid-row: 2;
+  grid-column: 1;
+  background: var(--surface-solid);
+}
+
+.calendar__weekdays span {
+  position: absolute;
+  right: 8px;
+  font-size: var(--fs-meta);
+  line-height: 1;
+  color: var(--text-muted);
+  transform: translateY(-50%);
+}
+
+.calendar__months {
+  position: relative;
+  grid-row: 1;
+  grid-column: 2;
+}
+
+.calendar__months span {
+  position: absolute;
+  top: 0;
+  font-size: var(--fs-meta);
+  line-height: 18px;
+  color: var(--text-muted);
+}
+
+.calendar__svg {
+  grid-row: 2;
+  grid-column: 2;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.calendar__svg rect:hover,
+.calendar__svg rect:focus-visible {
+  outline: 1px solid var(--quartz);
+  outline-offset: 1px;
+}
+
+.level-0 {
+  fill: var(--cal-0);
+  background-color: var(--cal-0);
+}
+.level-1 {
+  fill: var(--cal-1);
+  background-color: var(--cal-1);
+}
+.level-2 {
+  fill: var(--cal-2);
+  background-color: var(--cal-2);
+}
+.level-3 {
+  fill: var(--cal-3);
+  background-color: var(--cal-3);
+}
+.level-4 {
+  fill: var(--cal-4);
+  background-color: var(--cal-4);
+}
+
+.calendar__legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.legend-cell {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+}
+
+.calendar-skeleton {
+  flex: 1;
+  min-height: 190px;
+  background-color: var(--fill-subtle);
+  border: 1px solid var(--border-faint);
+  animation: skeleton-fade 2.4s ease-in-out infinite alternate;
+}
+
+/* ---- discord ------------------------------------------------------------ */
+
+.panel--discord {
+  padding: 0;
+}
+
+.discord__banner {
+  position: relative;
+  flex: none;
+  height: 100px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  /* shown when no banner exists: quartz glass material, not a fabricated Discord banner */
+  background:
+    linear-gradient(118deg, rgba(244, 241, 236, 0.13) 0%, rgba(244, 241, 236, 0.03) 38%, rgba(244, 241, 236, 0.09) 62%, rgba(244, 241, 236, 0.02) 100%),
+    repeating-linear-gradient(90deg, rgba(244, 241, 236, 0.045) 0 1px, transparent 1px 10px),
+    #070707;
+}
+
+.discord__banner img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.discord__label,
+.discord__connection {
+  position: absolute;
+  top: 12px;
+  z-index: 1;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.6);
+  font-size: var(--fs-heading);
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: var(--tracking-heading);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.discord__label {
+  left: var(--panel-pad);
+}
+
+.discord__connection {
+  right: var(--panel-pad);
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+}
+
+.discord__connection.is-stale {
+  color: var(--text-secondary);
+}
+
+.discord__connection.is-stale .marker {
+  background: transparent;
+  outline: 1px solid var(--text-secondary);
+  outline-offset: -1px;
+}
+
+.discord__identity {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 0 var(--panel-pad);
+}
+
+.discord__avatar {
+  position: relative;
+  flex: none;
+  width: 64px;
+  height: 64px;
+  margin-top: -32px;
+  background: var(--surface-solid);
+  box-shadow:
+    0 0 0 3px #0a0a0a,
+    0 0 0 4px var(--border-active);
+}
+
+/* the frame clips the alt text a failed image would otherwise spill out */
+.discord__avatar-frame {
+  display: block;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  font-size: var(--fs-meta);
+  line-height: 1.2;
+  color: var(--text-muted);
+}
+
+.discord__avatar img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+}
+
+.discord__avatar .status-marker {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 14px;
+  height: 14px;
+  --empty: #000;
+  box-shadow: 0 0 0 3px #0a0a0a;
+}
+
+.discord__avatar-skeleton {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  margin-top: -32px;
+}
+
+.discord__lines {
+  flex: 1;
+  padding-top: 8px;
+}
+
+.discord__names {
+  min-width: 0;
+  padding-top: 8px;
+}
+
+.discord__name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.discord__username {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.discord__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.discord__platforms {
+  color: var(--text-muted);
+}
+
+.discord__body {
+  padding: 14px var(--panel-pad) 20px;
+}
+
+.discord__bio {
+  margin-bottom: 14px;
+  color: var(--text-secondary);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.custom-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.custom-status__emoji {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.activities {
+  display: grid;
+  gap: 10px;
+}
+
+.activity {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  background: var(--fill-subtle);
+}
+
+.activity__text {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+
+.activity__kind {
+  font-size: var(--fs-meta);
+  letter-spacing: var(--tracking-heading);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.activity__title {
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.activity__detail {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.activity__detail--muted {
+  color: var(--text-muted);
+}
+
+.activity__time {
+  margin-top: 6px;
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+}
+
+.progress {
+  position: relative;
+  display: block;
+  height: 2px;
+  margin-top: 6px;
+  background: var(--border);
+}
+
+.progress__fill {
+  position: absolute;
+  inset: 0;
+  background: var(--quartz);
+  transform-origin: left;
+  transition: transform 1s linear;
+}
+
+.discord__setup {
+  padding: 0 var(--panel-pad);
+}
+
+/* status squares (never dots) */
+.status-marker {
+  --empty: transparent;
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--quartz);
+  background: var(--empty);
+}
+
+.status-marker--online {
+  background: var(--quartz);
+}
+
+.status-marker--idle {
+  background: linear-gradient(135deg, var(--quartz) 50%, var(--empty) 50%);
+}
+
+.status-marker--dnd {
+  background:
+    linear-gradient(#000, #000) center / 6px 2px no-repeat,
+    var(--quartz);
+}
+
+.status-marker--offline {
+  border-color: var(--text-muted);
+  background: var(--empty);
+}

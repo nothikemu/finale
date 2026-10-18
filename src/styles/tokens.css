@@ -1,0 +1,80 @@
+/*
+ * Design tokens. Every colour, size and duration used elsewhere comes from here.
+ * Palette: OLED black, quartz white (#f4f1ec) and grays between. "Mousou black"
+ * is the owner's descriptive direction for the deep, near-absolute black; it is
+ * not a standardised colour name.
+ */
+
+/* JetBrainsMono Nerd Font Mono, self-hosted. Built by scripts/build-fonts.py. */
+@font-face {
+  font-family: "JetBrainsMono Nerd Font Mono";
+  src: url("/fonts/JetBrainsMonoNerdFontMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrainsMono Nerd Font Mono";
+  src: url("/fonts/JetBrainsMonoNerdFontMono-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* colour */
+  --background: #000000;
+  --surface: rgba(12, 12, 12, 0.8);
+  --surface-fallback: #0c0c0c;
+  --surface-solid: #0b0b0b;
+  --quartz: #f4f1ec;
+  --text-primary: #f4f1ec;
+  --text-secondary: #aaa7a2;
+  --text-muted: #85827d;
+  --border: rgba(244, 241, 236, 0.16);
+  --border-active: rgba(244, 241, 236, 0.3);
+  --border-faint: rgba(244, 241, 236, 0.08);
+  --highlight: rgba(244, 241, 236, 0.1);
+  --fill-subtle: rgba(244, 241, 236, 0.05);
+  --fill-hover: rgba(244, 241, 236, 0.06);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+
+  /* contribution intensity: near-black through gray to quartz white */
+  --cal-0: #1c1c1b;
+  --cal-1: #3d3c39;
+  --cal-2: #6b6962;
+  --cal-3: #aaa7a0;
+  --cal-4: #f4f1ec;
+
+  /* type */
+  --font-mono: "JetBrainsMono Nerd Font Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Noto Sans Mono CJK JP", "Liberation Mono", monospace;
+  --fs-body: 0.8125rem; /* 13px */
+  --fs-about: 0.875rem; /* 14px */
+  --fs-heading: 0.6875rem; /* 11px */
+  --fs-meta: 0.6875rem; /* 11px */
+  --lh-body: 1.7;
+  --tracking-heading: 0.08em;
+
+  /* space */
+  --page-margin: 32px;
+  --gap: 16px;
+  --panel-pad: 24px;
+  --panel-blur: 14px;
+
+  /* motion */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --t-link: 180ms;
+  --t-enter: 280ms;
+  --t-stagger: 30ms;
+}
+
+@media (max-width: 767.98px) {
+  :root {
+    --page-margin: 16px;
+    --gap: 12px;
+    --panel-pad: 18px;
+  }
+}

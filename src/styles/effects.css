@@ -1,0 +1,292 @@
+/*
+ * Word effects in the about panel.
+ *
+ * Each effect has a polished static resting state (what touch devices and
+ * reduced-motion users see) and plays once on pointer hover or tap. Everything
+ * animates transform, opacity or a tiny background; nothing changes layout, and
+ * the readable word is never replaced. Decorative parts are aria-hidden and
+ * absolutely positioned inside the line box.
+ */
+
+.fx {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.fx i {
+  display: block;
+}
+
+/* ---- rocket: stepped lift with a small pixel exhaust ---------------------- */
+
+.fx__exhaust {
+  position: absolute;
+  top: calc(100% - 4px);
+  left: 50%;
+  width: 10px;
+  height: 9px;
+  margin-left: -5px;
+  pointer-events: none;
+}
+
+.fx__exhaust i {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: var(--quartz);
+  opacity: 0.4;
+}
+
+.fx__exhaust i:nth-child(1) {
+  left: 4px;
+  top: 0;
+}
+.fx__exhaust i:nth-child(2) {
+  left: 1px;
+  top: 3px;
+}
+.fx__exhaust i:nth-child(3) {
+  left: 7px;
+  top: 3px;
+}
+.fx__exhaust i:nth-child(4) {
+  left: 4px;
+  top: 6px;
+}
+
+@keyframes rocket-lift {
+  0% {
+    transform: translateY(0);
+  }
+  20% {
+    transform: translateY(-1px);
+  }
+  40% {
+    transform: translateY(-2px);
+  }
+  60% {
+    transform: translateY(-3px);
+  }
+  80% {
+    transform: translateY(-1px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes rocket-exhaust {
+  0% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+  25% {
+    opacity: 1;
+    transform: translateY(1px);
+  }
+  60% {
+    opacity: 0.8;
+    transform: translateY(3px);
+  }
+  100% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+}
+
+/* ---- beats: tiny equalizer, decorative only (it does not react to audio) --- */
+
+.fx__bars {
+  position: absolute;
+  top: calc(100% - 3px);
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  height: 8px;
+  pointer-events: none;
+}
+
+.fx__bars i {
+  width: 2px;
+  height: 8px;
+  background: var(--quartz);
+  opacity: 0.4;
+  transform: scaleY(var(--h));
+  transform-origin: bottom;
+}
+
+.fx__bars i:nth-child(1) {
+  --h: 0.4;
+}
+.fx__bars i:nth-child(2) {
+  --h: 0.85;
+}
+.fx__bars i:nth-child(3) {
+  --h: 0.55;
+}
+.fx__bars i:nth-child(4) {
+  --h: 1;
+}
+.fx__bars i:nth-child(5) {
+  --h: 0.5;
+}
+
+@keyframes beats-bar {
+  0% {
+    transform: scaleY(var(--h));
+    opacity: 0.4;
+  }
+  20% {
+    transform: scaleY(1);
+    opacity: 0.95;
+  }
+  40% {
+    transform: scaleY(0.3);
+    opacity: 0.7;
+  }
+  60% {
+    transform: scaleY(0.9);
+    opacity: 0.95;
+  }
+  80% {
+    transform: scaleY(0.5);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scaleY(var(--h));
+    opacity: 0.4;
+  }
+}
+
+/* ---- enjoyer: scan highlight over a stepped underline --------------------- */
+
+.fx--enjoyer {
+  /* clip, not hidden: overflow:hidden on an inline-block would drop its baseline to the bottom edge */
+  overflow: clip;
+  /* resting state: a pixel-dashed underline; the solid layer grows on play */
+  background:
+    linear-gradient(currentColor, currentColor) 0 calc(100% - 3px) / 0 1px no-repeat,
+    repeating-linear-gradient(90deg, rgba(244, 241, 236, 0.55) 0 2px, transparent 2px 4px) 0 calc(100% - 3px) / 100% 1px no-repeat;
+}
+
+.fx__scan {
+  position: absolute;
+  inset: 3px 0;
+  background: rgba(244, 241, 236, 0.16);
+  transform: translateX(-102%);
+  pointer-events: none;
+}
+
+@keyframes enjoyer-scan {
+  0% {
+    transform: translateX(-102%);
+  }
+  100% {
+    transform: translateX(102%);
+  }
+}
+
+@keyframes enjoyer-underline {
+  0% {
+    background-size:
+      0 1px,
+      100% 1px;
+  }
+  100% {
+    background-size:
+      100% 1px,
+      100% 1px;
+  }
+}
+
+/* ---- trigger: hover on pointer devices, tap (data-playing) elsewhere ------- */
+
+@media (hover: hover) {
+  .fx--rocket:hover {
+    animation: rocket-lift 560ms steps(1, end);
+  }
+  .fx--rocket:hover .fx__exhaust i {
+    animation: rocket-exhaust 560ms steps(1, end);
+  }
+  .fx--rocket:hover .fx__exhaust i:nth-child(2),
+  .fx--rocket:hover .fx__exhaust i:nth-child(3) {
+    animation-delay: 60ms;
+  }
+  .fx--rocket:hover .fx__exhaust i:nth-child(4) {
+    animation-delay: 120ms;
+  }
+
+  .fx--beats:hover .fx__bars i {
+    animation: beats-bar 640ms steps(1, end);
+  }
+  .fx--beats:hover .fx__bars i:nth-child(2) {
+    animation-delay: 60ms;
+  }
+  .fx--beats:hover .fx__bars i:nth-child(3) {
+    animation-delay: 120ms;
+  }
+  .fx--beats:hover .fx__bars i:nth-child(4) {
+    animation-delay: 30ms;
+  }
+  .fx--beats:hover .fx__bars i:nth-child(5) {
+    animation-delay: 90ms;
+  }
+
+  .fx--enjoyer:hover {
+    animation: enjoyer-underline 520ms steps(6, end) forwards;
+  }
+  .fx--enjoyer:hover .fx__scan {
+    animation: enjoyer-scan 520ms steps(8, end);
+  }
+}
+
+.fx--rocket[data-playing] {
+  animation: rocket-lift 560ms steps(1, end);
+}
+.fx--rocket[data-playing] .fx__exhaust i {
+  animation: rocket-exhaust 560ms steps(1, end);
+}
+.fx--rocket[data-playing] .fx__exhaust i:nth-child(2),
+.fx--rocket[data-playing] .fx__exhaust i:nth-child(3) {
+  animation-delay: 60ms;
+}
+.fx--rocket[data-playing] .fx__exhaust i:nth-child(4) {
+  animation-delay: 120ms;
+}
+
+.fx--beats[data-playing] .fx__bars i {
+  animation: beats-bar 640ms steps(1, end);
+}
+.fx--beats[data-playing] .fx__bars i:nth-child(2) {
+  animation-delay: 60ms;
+}
+.fx--beats[data-playing] .fx__bars i:nth-child(3) {
+  animation-delay: 120ms;
+}
+.fx--beats[data-playing] .fx__bars i:nth-child(4) {
+  animation-delay: 30ms;
+}
+.fx--beats[data-playing] .fx__bars i:nth-child(5) {
+  animation-delay: 90ms;
+}
+
+.fx--enjoyer[data-playing] {
+  animation: enjoyer-underline 520ms steps(6, end) forwards;
+}
+.fx--enjoyer[data-playing] .fx__scan {
+  animation: enjoyer-scan 520ms steps(8, end);
+}
+
+/* Reduced motion: keep the static special styling, drop every animation. */
+@media (prefers-reduced-motion: reduce) {
+  .fx,
+  .fx *,
+  .fx[data-playing],
+  .fx[data-playing] * {
+    animation: none !important;
+  }
+}
