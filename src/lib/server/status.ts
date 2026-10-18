@@ -207,7 +207,8 @@ export function describeEnvFiles(folder: string): EnvFileInfo[] {
   const found: EnvFileInfo[] = [];
   for (const name of ENV_FILES) {
     try {
-      const bytes = readFileSync(join(folder, name));
+      // Looking at the server's own folder at run time is the point; keep the bundler from tracing it into the build.
+      const bytes = readFileSync(join(/* turbopackIgnore: true */ folder, name));
       const utf16 = (bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff) || bytes.includes(0);
       const text = utf16 ? "" : bytes.toString("utf8");
       const defines = SETTINGS.filter((key) => new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`, "m").test(text));
@@ -221,8 +222,9 @@ export function describeEnvFiles(folder: string): EnvFileInfo[] {
 
 function describeBuild(folder: string): string {
   try {
-    const id = readFileSync(join(folder, ".next", "BUILD_ID"), "utf8").trim();
-    const built = statSync(join(folder, ".next", "BUILD_ID")).mtime.toISOString().slice(0, 16).replace("T", " ");
+    const file = join(folder, ".next", "BUILD_ID");
+    const id = readFileSync(/* turbopackIgnore: true */ file, "utf8").trim();
+    const built = statSync(/* turbopackIgnore: true */ file).mtime.toISOString().slice(0, 16).replace("T", " ");
     return `${id} (made ${built} UTC)`;
   } catch {
     return "unknown (development, or not a standard build folder)";
