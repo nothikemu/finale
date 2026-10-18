@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mockLanyard, panel, presenceFixture, settle } from "./helpers";
+import { expireLanyardSettleTimer, mockLanyard, panel, presenceFixture, settle } from "./helpers";
 
 test.describe("calendar interaction", () => {
   test.beforeEach(async ({ page }) => {
@@ -301,9 +301,9 @@ test.describe("discord presence (Lanyard)", () => {
 
   test("a disconnected API is shown as unavailable, never as offline", async ({ page }) => {
     await page.clock.install();
-    await mockLanyard(page, presenceFixture(), { rest: "down", socket: "down" });
+    const mock = await mockLanyard(page, presenceFixture(), { rest: "down", socket: "down" });
     await page.goto("/");
-    await page.clock.fastForward(11_000);
+    await expireLanyardSettleTimer(page, mock);
     const discord = panel(page, "discord");
     await expect(discord).toContainText("presence unavailable");
     await expect(discord).not.toContainText("offline");

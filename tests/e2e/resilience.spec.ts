@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { FAKE_SECRETS, URLS } from "./constants";
-import { mockLanyard, panel } from "./helpers";
+import { expireLanyardSettleTimer, mockLanyard, panel } from "./helpers";
 
 /** What the owner would see when GitHub rejects the token, when there is no token, and when things fail. */
 
@@ -79,9 +79,9 @@ test.describe("owner diagnostics (SHOW_DIAGNOSTICS=1)", () => {
 
   test("every failing panel says which service failed and what to do, without leaking secrets", async ({ page }) => {
     await page.clock.install();
-    await mockLanyard(page, undefined, { rest: "down", socket: "down" });
+    const mock = await mockLanyard(page, undefined, { rest: "down", socket: "down" });
     await page.goto("/");
-    await page.clock.fastForward(11_000);
+    await expireLanyardSettleTimer(page, mock);
 
     const hints = await page.locator(".dashboard .state__hint").allTextContents();
     expect(hints.length).toBe(4);

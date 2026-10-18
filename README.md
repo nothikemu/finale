@@ -183,7 +183,9 @@ Honest reading: the simulated-mobile LCP misses the 2.5 s target. On a phone-siz
 
 ### Live integrations
 
-The automated tests use fixtures for GitHub and ListenBrainz and a mocked Lanyard, so **no automated run has exercised the real services**. Their response shapes are implemented from the public documentation and covered by fixtures and unit tests; after configuring, open each panel once with real credentials.
+**GitHub** was exercised against the real GitHub with a real account during development: the app returned all of the account's public repositories and its GraphQL calendar, and the real public contributions page parses correctly (365 contiguous days, with a total equal to GitHub's own heading).
+
+**Lanyard and ListenBrainz** could not be reached from the build environment, so those two rest on their official documentation (Lanyard's README for the REST and WebSocket protocol; ListenBrainz's JSON docs for listens), fixtures and unit tests. Run `npm run doctor` on your machine to confirm them against the real services.
 
 ## Setup checklist
 

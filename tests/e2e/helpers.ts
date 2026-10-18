@@ -1,4 +1,4 @@
-import type { Page, WebSocketRoute } from "@playwright/test";
+import { expect, type Page, type WebSocketRoute } from "@playwright/test";
 import { TEST_DISCORD_ID } from "./constants";
 
 /** 1x1 PNG so external artwork never produces network noise offline. */
@@ -42,6 +42,8 @@ export function presenceFixture(overrides: Record<string, unknown> = {}) {
 export interface LanyardMock {
   /** Every socket the page opened, in order. */
   sockets: WebSocketRoute[];
+  /** How many times the page asked Lanyard's REST endpoint: proof the page has hydrated and started its connection. */
+  restRequests: number;
   /** Frames the page sent, across all sockets. */
   received: { op: number; d?: unknown }[];
   push(data: unknown): void;
@@ -51,6 +53,7 @@ export interface LanyardMock {
 export async function mockLanyard(page: Page, data: unknown = presenceFixture(), options: { rest?: "ok" | "untracked" | "down"; socket?: "ok" | "down" } = {}): Promise<LanyardMock> {
   const mock: LanyardMock = {
     sockets: [],
+    restRequests: 0,
     received: [],
     push(next) {
       mock.sockets.at(-1)?.send(JSON.stringify({ op: 0, seq: 2, t: "PRESENCE_UPDATE", d: next }));
@@ -62,6 +65,7 @@ export async function mockLanyard(page: Page, data: unknown = presenceFixture(),
   );
 
   await page.route("https://api.lanyard.rest/v1/users/*", (route) => {
+    mock.restRequests += 1;
     if (options.rest === "down") return route.abort();
     if (options.rest === "untracked") {
       return route.fulfill({ status: 404, json: { success: false, error: { code: "user_not_monitored", message: "User is not being monitored by Lanyard" } } });
@@ -97,4 +101,14 @@ export async function settle(page: Page) {
         .map((animation) => animation.finished.catch(() => undefined)),
     ),
   );
+}
+
+/**
+ * The Discord panel gives up on Lanyard 10 seconds after its connection starts. With a fake clock that
+ * timer only exists once the page has hydrated, so wait for the page's first Lanyard request before
+ * moving the clock; fast-forwarding earlier would race hydration and move time for a timer not yet set.
+ */
+export async function expireLanyardSettleTimer(page: Page, mock: LanyardMock) {
+  await expect.poll(() => mock.restRequests, { message: "the page should have started its Lanyard connection" }).toBeGreaterThan(0);
+  await page.clock.fastForward(11_000);
 }

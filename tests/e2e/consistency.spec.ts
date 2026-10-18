@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { URLS } from "./constants";
-import { mockLanyard, panel, presenceFixture, settle } from "./helpers";
+import { expireLanyardSettleTimer, mockLanyard, panel, presenceFixture, settle } from "./helpers";
 
 /**
  * "Every UI should be the same": one visual language across panels, breakpoints
@@ -117,11 +117,11 @@ test.describe("shared typography and structure", () => {
   });
 
   test("not-configured, unavailable and empty messages share one look in every panel", async ({ page }) => {
-    await mockLanyard(page, presenceFixture(), { rest: "down", socket: "down" });
+    const mock = await mockLanyard(page, presenceFixture(), { rest: "down", socket: "down" });
     await page.clock.install();
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`${URLS.outage}/`);
-    await page.clock.fastForward(11_000);
+    await expireLanyardSettleTimer(page, mock);
     const states = page.locator(".dashboard .state");
     await expect(states).toHaveCount(4); // discord, listening, activity, projects
     const looks = await states.evaluateAll((els) =>
@@ -141,9 +141,9 @@ test.describe("shared typography and structure", () => {
   test("production never shows setup hints or integration names to visitors", async ({ page }) => {
     // discord unreachable, then discord untracked
     await page.clock.install();
-    await mockLanyard(page, presenceFixture(), { rest: "down", socket: "down" });
+    const mock = await mockLanyard(page, presenceFixture(), { rest: "down", socket: "down" });
     await page.goto("/");
-    await page.clock.fastForward(11_000);
+    await expireLanyardSettleTimer(page, mock);
     await expect(panel(page, "discord")).toContainText("presence unavailable");
     expect(await panel(page, "discord").locator(".state__hint").count()).toBe(0);
     await expect(panel(page, "discord")).not.toContainText(/lanyard/i);

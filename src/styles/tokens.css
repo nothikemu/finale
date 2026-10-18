@@ -43,10 +43,11 @@
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
 
   /* contribution intensity: near-black through gray to quartz white */
-  --cal-0: #1c1c1b;
-  --cal-1: #3d3c39;
-  --cal-2: #6b6962;
-  --cal-3: #aaa7a0;
+  /* a sparse year (a few lit days) must still read as a grid: even level 0 stays clearly above the panel */
+  --cal-0: #242423;
+  --cal-1: #4c4b47;
+  --cal-2: #78766f;
+  --cal-3: #aeaba4;
   --cal-4: #f4f1ec;
 
   /* type */
