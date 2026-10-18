@@ -107,6 +107,39 @@ function classify(error) {
 
 const NET_FIX = "check this machine's internet access, VPN, proxy and firewall";
 
+/**
+ * The same acceptance rules as src/data/github/public-calendar.ts, in plain JS:
+ * at least 360 contiguous days, each with a 0-4 level, and a count for every
+ * non-zero day. Returns the number of days, or 0 if the site could not use the page.
+ */
+function parsePublicDays(html) {
+  const tooltips = new Map();
+  for (const m of html.matchAll(/<tool-tip\b([^>]*)>([\s\S]*?)<\/tool-tip>/gi)) {
+    const target = /\sfor="([^"]*)"/i.exec(` ${m[1]}`)?.[1];
+    const text = /^\s*(No|\d[\d,]*)\s+contributions?\b/i.exec(m[2].replace(/\s+/g, " "));
+    if (target && text) tooltips.set(target, text[1].toLowerCase() === "no" ? 0 : Number(text[1].replace(/,/g, "")));
+  }
+  const days = new Map();
+  for (const m of html.matchAll(/<(?:td|rect)\b[^>]*>/gi)) {
+    const attr = (name) => new RegExp(`\\s${name}="([^"]*)"`, "i").exec(m[0])?.[1] ?? null;
+    const date = attr("data-date");
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) continue;
+    const level = attr("data-level");
+    if (level === null || !/^[0-4]$/.test(level)) return 0;
+    const id = attr("id");
+    const direct = attr("data-count");
+    const count = direct !== null && /^\d+$/.test(direct) ? Number(direct) : id ? (tooltips.get(id) ?? null) : null;
+    if (count === null && level !== "0") return 0;
+    days.set(date, true);
+  }
+  const dates = [...days.keys()].sort();
+  if (dates.length < 360) return 0;
+  for (let i = 1; i < dates.length; i += 1) {
+    if (Date.parse(`${dates[i]}T00:00:00Z`) - Date.parse(`${dates[i - 1]}T00:00:00Z`) !== 86_400_000) return 0;
+  }
+  return dates.length;
+}
+
 // ---- Lanyard -------------------------------------------------------------------
 
 heading("2. Discord presence (Lanyard)");
@@ -227,11 +260,10 @@ if (pub.error) {
   if (graphqlOk) warn(`public contributions graph unreachable (${pub.error}); not needed while GraphQL works`);
   else fail(`could not reach github.com for the public contributions graph: ${pub.error}`, NET_FIX);
 } else if (pub.status === 200) {
-  const cells = (pub.text.match(/data-date="\d{4}-\d{2}-\d{2}"/g) ?? []).length;
-  const tooltips = (pub.text.match(/<tool-tip\b/gi) ?? []).length;
-  if (cells >= 300 && (tooltips >= 300 || /data-count="/.test(pub.text))) ok(`public contributions graph available (${cells} days)`);
+  const days = parsePublicDays(pub.text);
+  if (days) ok(`public contributions graph available (${days} days)`);
   else if (graphqlOk) warn("public contributions graph did not have the expected markup; not needed while GraphQL works");
-  else fail("the public contributions graph did not have the expected markup", "set a working GITHUB_TOKEN so GraphQL can be used");
+  else fail("the public contributions graph did not have the expected markup (the site cannot use it)", "set a working GITHUB_TOKEN so GraphQL can be used");
 } else if (!graphqlOk) fail(`github.com answered HTTP ${pub.status} for the public contributions graph`, "set a working GITHUB_TOKEN so GraphQL can be used");
 
 // ---- summary ---------------------------------------------------------------------------

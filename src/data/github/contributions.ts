@@ -129,7 +129,13 @@ async function fetchCalendar(username: string): Promise<ContributionCalendar> {
       return await fetchPublicCalendar(username);
     } catch (error) {
       if (!(error instanceof UpstreamError)) throw error;
-      if (!token) throw new MissingConfigError(["GITHUB_TOKEN"]);
+      console.warn(`[github] public contributions graph failed (${error.message})`);
+      if (!token) {
+        // A token only helps if the page itself is unusable. For network, rate-limit and
+        // server errors the honest answer is the real cause, not "not configured".
+        if (error.kind === "not-found" || error.kind === "invalid-response" || error.kind === "auth") throw new MissingConfigError(["GITHUB_TOKEN"]);
+        throw error;
+      }
       throw primaryError ?? error;
     }
   }

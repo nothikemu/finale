@@ -6,12 +6,12 @@ import { clearCache } from "@/lib/server/cache";
 
 const DAY = 86_400_000;
 
-function publicHtml(): string {
+function publicHtml(statedTotal?: string): string {
   const last = Date.parse("2026-10-18T00:00:00Z");
   const days = Array.from({ length: 365 }, (_, i) => new Date(last - (364 - i) * DAY).toISOString().slice(0, 10));
   const tds = days.map((date, i) => `<td data-date="${date}" id="c-${i}" data-level="${i % 3 === 0 ? 1 : 0}"></td>`).join("");
   const tips = days.map((_, i) => `<tool-tip for="c-${i}">${i % 3 === 0 ? "2 contributions on October 1st." : "No contributions on October 1st."}</tool-tip>`).join("");
-  return `<table>${tds}</table>${tips}`;
+  return `<h2>${statedTotal ?? "x"} contributions in the last year</h2><table>${tds}</table>${tips}`;
 }
 
 const GRAPHQL_OK = {
@@ -105,6 +105,36 @@ describe("contribution calendar sources", () => {
     const result = await loadContributions();
     expect(result).toMatchObject({ status: "unavailable", reason: "rate-limited" });
     expect(calls).toHaveLength(1);
+  });
+
+  it("without a token, reports the real cause when the public graph fails for a reason a token would not fix", async () => {
+    mockFetch(() => {
+      throw new TypeError("fetch failed");
+    });
+    expect(await loadContributions()).toMatchObject({ status: "unavailable", reason: "network", detail: "github-public: network" });
+
+    clearCache();
+    mockFetch(() => json({ message: "rate limited" }, 429, { "retry-after": "600" }));
+    expect(await loadContributions()).toMatchObject({ status: "unavailable", reason: "rate-limited" });
+  });
+
+  it("without a token, says 'missing configuration' when the public page itself is unusable", async () => {
+    mockFetch(() => html("<html>sign in</html>")); // 200, but not a contribution graph
+    expect(await loadContributions()).toEqual({ status: "missing-config", missing: ["GITHUB_TOKEN"] });
+  });
+
+  it("logs why the public graph failed, so the owner has a signal", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    mockFetch(() => html("Not Found", 404));
+    await loadContributions();
+    expect(warn.mock.calls.flat().join("\n")).toMatch(/public contributions graph failed \(github-public: not-found/);
+  });
+
+  it("warns, but still shows the parsed days, when the page's own total disagrees", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    mockFetch(() => html(publicHtml("99,999")));
+    expect((await loadContributions()).status).toBe("ok");
+    expect(warn.mock.calls.flat().join("\n")).toMatch(/states 99,999 contributions/);
   });
 
   it("can be restricted to GraphQL only", async () => {

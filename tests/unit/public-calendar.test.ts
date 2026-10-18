@@ -84,6 +84,23 @@ describe("parsePublicCalendar", () => {
     expect(() => parsePublicCalendar(badLevel)).toThrow(/invalid-response/);
   });
 
+  it("requires a real 0-4 level on every cell instead of defaulting to 0", () => {
+    expect(() => parsePublicCalendar(html(year()).replace(/ data-level="\d"/, ""))).toThrow(/invalid-response/);
+    expect(() => parsePublicCalendar(html(year()).replace(/data-level="\d"/, 'data-level=""'))).toThrow(/invalid-response/);
+    expect(() => parsePublicCalendar(html(year()).replace(/data-level="\d"/, 'data-level="x"'))).toThrow(/invalid-response/);
+  });
+
+  it("rejects a page with a missing day or fewer days than a year, which would be a silent undercount", () => {
+    const cells = year();
+    expect(() => parsePublicCalendar(html([...cells.slice(0, 200), ...cells.slice(201)]))).toThrow(/invalid-response/); // one day dropped
+    expect(() => parsePublicCalendar(html(cells.slice(0, 330)))).toThrow(/invalid-response/); // truncated
+    expect(parsePublicCalendar(html(cells.slice(0, 365))).weeks.flat()).toHaveLength(365);
+  });
+
+  it("accepts the 366/371-day shapes GitHub renders", () => {
+    expect(parsePublicCalendar(html(year("2026-10-17").concat([{ date: "2026-10-18", count: 2 }]))).weeks.flat()).toHaveLength(366);
+  });
+
   it("ignores cells with impossible dates", () => {
     const withJunk = html(year()) + '<td data-date="2026-13-45" data-level="1"></td><td data-date="not-a-date" data-level="1"></td>';
     expect(parsePublicCalendar(withJunk).weeks.flat()).toHaveLength(365);

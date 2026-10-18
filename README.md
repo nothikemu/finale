@@ -153,7 +153,7 @@ Results at release (Chromium via Playwright, Node 22):
 
 | Check | Result |
 | --- | --- |
-| Unit tests | 85 passed |
+| Unit tests | 92 passed |
 | End-to-end tests | 121 passed (layout, content, interaction, states, security, accessibility, cross-state consistency, resilience, doctor) |
 | ESLint, `tsc --noEmit`, production `next build` | clean |
 | `npm audit --omit=dev` | 0 vulnerabilities (dev-only advisories exist in test tooling) |

@@ -16,7 +16,8 @@ import { fetchUpstreamText, UpstreamError } from "@/lib/server/http";
  * older markup, a data-count attribute.
  */
 
-const MIN_CELLS = 300;
+/** A year of days is at least 365 cells; anything much smaller is a truncated or different page. */
+const MIN_CELLS = 360;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 86_400_000;
 
@@ -48,8 +49,10 @@ export function parsePublicCalendar(html: string): ContributionCalendar {
     const date = attribute(tag, "data-date");
     if (!date || !DATE.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) continue;
 
-    const level = Number(attribute(tag, "data-level"));
-    if (!Number.isInteger(level) || level < 0 || level > 4) throw invalid();
+    // The level must be present and 0-4: a missing or blank value must not silently become 0.
+    const rawLevel = attribute(tag, "data-level");
+    if (rawLevel === null || !/^[0-4]$/.test(rawLevel)) throw invalid();
+    const level = Number(rawLevel);
 
     const id = attribute(tag, "id");
     const direct = attribute(tag, "data-count");
@@ -61,6 +64,10 @@ export function parsePublicCalendar(html: string): ContributionCalendar {
   if (days.size < MIN_CELLS) throw invalid();
 
   const sorted = [...days.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+  // Every day in the range must be present: a dropped day would be an undetected undercount.
+  for (let i = 1; i < sorted.length; i += 1) {
+    if (Date.parse(`${sorted[i]!.date}T00:00:00Z`) - Date.parse(`${sorted[i - 1]!.date}T00:00:00Z`) !== DAY_MS) throw invalid();
+  }
   const first = sorted[0]!;
   const start = Date.parse(`${first.date}T00:00:00Z`);
   const weekZero = start - new Date(start).getUTCDay() * DAY_MS;
@@ -87,5 +94,10 @@ export async function fetchPublicCalendar(username: string): Promise<Contributio
   });
   const calendar = parsePublicCalendar(html);
   if (!calendarShape.safeParse(calendar).success) throw new UpstreamError("invalid-response", "github-public");
+  // The page also states its own total. A mismatch is not fatal (we show the days we parsed) but is worth knowing.
+  const stated = /([\d,]+)\s+contributions?\s+in\s+the\s+last\s+year/i.exec(html)?.[1];
+  if (stated && Number(stated.replace(/,/g, "")) !== calendar.total) {
+    console.warn(`[github-public] the page states ${stated} contributions but its days add up to ${calendar.total}`);
+  }
   return calendar;
 }
