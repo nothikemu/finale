@@ -5,7 +5,7 @@ import { cacheTtl, site } from "@/config/site";
 import type { ContributionCalendar, ContributionDay, ContributionLevel, Loaded } from "@/data/types";
 import { toLoaded } from "@/lib/server/cache";
 import { MissingConfigError, serverEnv, warnOnce } from "@/lib/server/env";
-import { fetchUpstreamJson, UpstreamError } from "@/lib/server/http";
+import { fetchUpstreamJson, isUpstreamError, UpstreamError } from "@/lib/server/http";
 import { fetchPublicCalendar } from "./public-calendar";
 
 const QUERY = `query ContributionCalendar($login: String!) {
@@ -114,7 +114,7 @@ async function fetchCalendar(username: string): Promise<ContributionCalendar> {
     try {
       return await fetchGraphql(username, token);
     } catch (error) {
-      if (!(error instanceof UpstreamError)) throw error;
+      if (!isUpstreamError(error)) throw error;
       // A rate limit applies to the public page too; everything else may succeed there.
       if (error.kind === "rate-limited" || !site.github.publicCalendarFallback) throw error;
       primaryError = error;
@@ -128,7 +128,7 @@ async function fetchCalendar(username: string): Promise<ContributionCalendar> {
     try {
       return await fetchPublicCalendar(username);
     } catch (error) {
-      if (!(error instanceof UpstreamError)) throw error;
+      if (!isUpstreamError(error)) throw error;
       console.warn(`[github] public contributions graph failed (${error.message})`);
       if (!token) {
         // A token only helps if the page itself is unusable. For network, rate-limit and

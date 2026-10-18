@@ -42,6 +42,15 @@ export class UpstreamError extends Error {
   }
 }
 
+/**
+ * Recognises an UpstreamError by what it is, not by which copy of the class made it. Next.js bundles
+ * each route separately, so an error cached by the page is not an `instanceof` the class that
+ * /api/* or /status sees; an instanceof check would quietly demote it to a vague "upstream".
+ */
+export function isUpstreamError(error: unknown): error is UpstreamError {
+  return error instanceof UpstreamError || (error instanceof Error && error.name === "UpstreamError" && typeof (error as { kind?: unknown }).kind === "string");
+}
+
 export interface FetchOptions {
   service: string;
   init?: RequestInit;

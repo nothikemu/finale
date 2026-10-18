@@ -28,4 +28,6 @@ export const URLS = {
   localViewer: "http://localhost:3109",
   /** ListenBrainz configured with a list of guessed usernames, one of them real; its listens are mixed */
   guessedUsernames: "http://localhost:3110",
+  /** ListenBrainz unreachable (network), owner diagnostics on */
+  listenbrainzBlocked: "http://localhost:3111",
 } as const;

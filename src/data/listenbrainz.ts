@@ -6,7 +6,7 @@ import type { ListeningData, Listen, Loaded, Track } from "@/data/types";
 import { cleanText, spotifyTrackUrl } from "@/lib/sanitize";
 import { cached, toLoaded } from "@/lib/server/cache";
 import { MissingConfigError, serverEnv, warnOnce } from "@/lib/server/env";
-import { fetchUpstreamJson, UpstreamError } from "@/lib/server/http";
+import { fetchUpstreamJson, isUpstreamError, UpstreamError } from "@/lib/server/http";
 
 const API = "https://api.listenbrainz.org/1";
 const HISTORY_COUNT = 50;
@@ -290,7 +290,7 @@ export function loadListening(): Promise<Loaded<ListeningData>> {
         } catch (error) {
           // ListenBrainz does not know this spelling: try the next candidate. Any other error
           // stops here, so a hiccup can never show a different account's listens.
-          if (error instanceof UpstreamError && error.kind === "not-found") {
+          if (isUpstreamError(error) && error.kind === "not-found") {
             unknown = error;
             continue;
           }

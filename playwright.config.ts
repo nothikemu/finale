@@ -17,6 +17,7 @@ import { FAKE_SECRETS, TEST_DISCORD_ID } from "./tests/e2e/constants";
  *   3108  nothing configured, owner diagnostics on: what an owner sees when their config never arrives
  *   3109  nothing configured, SHOW_DIAGNOSTICS left unset: the owner is recognised by viewing from localhost
  *   3110  ListenBrainz configured with only a list of guessed usernames, one of them real
+ *   3111  ListenBrainz unreachable (network), owner diagnostics on: the same cause must show in the page, the API and /status
  *
  * Every other server sets SHOW_DIAGNOSTICS=0 so that, although the tests browse from localhost, they
  * see what a remote visitor sees.
@@ -28,7 +29,7 @@ import { FAKE_SECRETS, TEST_DISCORD_ID } from "./tests/e2e/constants";
 
 const preload = `--import ${path.join(__dirname, "tests/e2e/fixtures/upstream-preload.mjs")}`;
 
-const blank = { DISCORD_USER_ID: "", LISTENBRAINZ_TOKEN: "", LISTENBRAINZ_USERNAME: "", GITHUB_TOKEN: "", PROFILE_BANNER_URL: "", PROFILE_BIO: "", SHOW_DIAGNOSTICS: "0", LANYARD_FIXTURE: "" };
+const blank = { DISCORD_USER_ID: "", LISTENBRAINZ_TOKEN: "", LISTENBRAINZ_USERNAME: "", GITHUB_TOKEN: "", PROFILE_BANNER_URL: "", PROFILE_BIO: "", SHOW_DIAGNOSTICS: "0", LANYARD_FIXTURE: "", LISTENBRAINZ_FIXTURE: "" };
 
 function server(port: number, env: Record<string, string>) {
   return {
@@ -87,5 +88,6 @@ export default defineConfig({
     server(3108, { FIXTURE_MODE: "ok-no-public", SHOW_DIAGNOSTICS: "1" }),
     server(3109, { FIXTURE_MODE: "ok-no-public", SHOW_DIAGNOSTICS: "" }),
     server(3110, { FIXTURE_MODE: "ok", LISTENBRAINZ_USERNAME: "not-a-user or fixture-mixed", SHOW_DIAGNOSTICS: "1" }),
+    server(3111, { FIXTURE_MODE: "ok", LISTENBRAINZ_FIXTURE: "blocked", LISTENBRAINZ_USERNAME: "fixture-user", SHOW_DIAGNOSTICS: "1" }),
   ],
 });

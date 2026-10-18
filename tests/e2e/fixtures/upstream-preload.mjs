@@ -17,6 +17,8 @@
  *   untracked        Lanyard answers 404 user_not_monitored
  *   garbage          Lanyard answers 200 with a payload that is not a presence
  * (FIXTURE_MODE=down and ratelimit still win, as for every other upstream.)
+ *
+ * LISTENBRAINZ_FIXTURE=blocked  ListenBrainz requests fail like a blocked network (a specific, non-generic cause)
  */
 
 const realFetch = globalThis.fetch;
@@ -150,6 +152,7 @@ globalThis.fetch = async (input, init) => {
   const isLanyard = url.hostname === "api.lanyard.rest";
   if (!isGithub && !isGithubWeb && !isListenBrainz && !isLanyard) return realFetch(input, init);
 
+  if (isListenBrainz && process.env.LISTENBRAINZ_FIXTURE === "blocked") throw new TypeError("fetch failed");
   if (mode === "down") return json({ message: "fixture outage" }, 500);
   if (mode === "ratelimit") return json({ message: "fixture rate limit" }, 429, { "retry-after": "120" });
 

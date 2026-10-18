@@ -1,8 +1,8 @@
 import "server-only";
 
 import type { Loaded } from "@/data/types";
-import { MissingConfigError } from "./env";
-import { UpstreamError } from "./http";
+import { isMissingConfigError } from "./env";
+import { isUpstreamError, UpstreamError } from "./http";
 
 /**
  * In-process cache with:
@@ -80,8 +80,8 @@ export async function cached<T>({ key, ttlMs, load }: CacheOptions<T>): Promise<
       target.lastError = undefined;
       return value;
     } catch (error) {
-      if (error instanceof MissingConfigError) throw error;
-      const upstream = error instanceof UpstreamError ? error : new UpstreamError("upstream", key);
+      if (isMissingConfigError(error)) throw error;
+      const upstream = isUpstreamError(error) ? error : new UpstreamError("upstream", key);
       const cooldown = Math.min(MAX_COOLDOWN_MS, upstream.retryAfterMs ?? ERROR_COOLDOWN_MS);
       target.blockedUntil = Date.now() + Math.max(cooldown, 1000);
       target.lastError = upstream;
@@ -109,8 +109,8 @@ export async function toLoaded<T>(options: CacheOptions<T>): Promise<Loaded<T>> 
     const result = await cached(options);
     return { status: "ok", data: result.data, fetchedAt: result.fetchedAt, stale: result.stale };
   } catch (error) {
-    if (error instanceof MissingConfigError) return { status: "missing-config", missing: error.missing };
-    const upstream = error instanceof UpstreamError ? error : new UpstreamError("upstream", options.key);
+    if (isMissingConfigError(error)) return { status: "missing-config", missing: error.missing };
+    const upstream = isUpstreamError(error) ? error : new UpstreamError("upstream", options.key);
     // Status and kind only: never the request, headers or credentials.
     console.warn(`[upstream] ${upstream.message}`);
     return { status: "unavailable", reason: upstream.reason, detail: upstream.message };

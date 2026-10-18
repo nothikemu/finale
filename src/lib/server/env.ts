@@ -90,6 +90,11 @@ export class MissingConfigError extends Error {
   }
 }
 
+/** See isUpstreamError: recognised by shape, because each route bundle has its own copy of the class. */
+export function isMissingConfigError(error: unknown): error is MissingConfigError {
+  return error instanceof MissingConfigError || (error instanceof Error && error.name === "MissingConfigError" && Array.isArray((error as { missing?: unknown }).missing));
+}
+
 const warned = new Set<string>();
 
 /** Logs a configuration problem once per process. Never logs values. */

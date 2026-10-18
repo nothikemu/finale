@@ -5,7 +5,7 @@ import type { Loaded } from "@/data/types";
 import { asRecord } from "@/lib/guards";
 import { toLoaded } from "@/lib/server/cache";
 import { serverEnv } from "@/lib/server/env";
-import { fetchUpstreamJson, UpstreamError } from "@/lib/server/http";
+import { fetchUpstreamJson, isUpstreamError, UpstreamError } from "@/lib/server/http";
 import { isSnowflake } from "./assets";
 import { lanyardRestUrl } from "./lanyard-store";
 import { parseLanyardPresence, presenceProblem } from "./parse";
@@ -38,7 +38,7 @@ async function fetchSnapshot(userId: string): Promise<PresenceSnapshot> {
     ({ json } = await fetchUpstreamJson(lanyardRestUrl(userId), { service: "lanyard", timeoutMs: 3000, retries: 1 }));
   } catch (error) {
     // For this fixed path, Lanyard's only 404 is user_not_monitored.
-    if (error instanceof UpstreamError && error.kind === "not-found") return { tracked: false, presence: null };
+    if (isUpstreamError(error) && error.kind === "not-found") return { tracked: false, presence: null };
     throw error;
   }
   const body = asRecord(json);

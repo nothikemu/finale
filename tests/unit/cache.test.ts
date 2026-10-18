@@ -95,3 +95,51 @@ describe("parseRetryAfter", () => {
     expect(parseRetryAfter(new Headers(), now)).toBeUndefined();
   });
 });
+
+describe("errors that come from another copy of the class", () => {
+  // Next.js bundles each route separately, so the page and /api/* or /status each get their own
+  // UpstreamError / MissingConfigError class while sharing one cache. These stand in for the other copy.
+  class ForeignUpstreamError extends Error {
+    readonly kind: string;
+    readonly service: string;
+    readonly status?: number;
+    constructor(kind: string, service: string, status?: number) {
+      super(`${service}: ${kind}${status ? ` (${status})` : ""}`);
+      this.name = "UpstreamError";
+      this.kind = kind;
+      this.service = service;
+      this.status = status;
+    }
+    get reason() {
+      return this.kind === "rate-limited" ? "rate-limited" : this.kind === "network" ? "network" : "upstream";
+    }
+  }
+  class ForeignMissingConfigError extends Error {
+    constructor(readonly missing: string[]) {
+      super("missing");
+      this.name = "MissingConfigError";
+    }
+  }
+
+  it("keeps the real cause instead of demoting it to a vague upstream error", async () => {
+    const result = await toLoaded({ key: "k-foreign", ttlMs: 1000, load: () => Promise.reject(new ForeignUpstreamError("network", "listenbrainz")) });
+    expect(result).toMatchObject({ status: "unavailable", reason: "network", detail: "listenbrainz: network" });
+  });
+
+  it("keeps the cause when it is served from the cool-down of an earlier failure", async () => {
+    const first = await toLoaded({ key: "k-cool", ttlMs: 1000, load: () => Promise.reject(new ForeignUpstreamError("rate-limited", "github-repos", 403)) });
+    const second = await toLoaded({ key: "k-cool", ttlMs: 1000, load: () => Promise.resolve("never called while cooling down") });
+    expect(first).toMatchObject({ reason: "rate-limited" });
+    expect(second).toMatchObject({ status: "unavailable", reason: "rate-limited", detail: "github-repos: rate-limited (403)" });
+  });
+
+  it("still reports a missing configuration from the other copy as one", async () => {
+    const result = await toLoaded({ key: "k-missing", ttlMs: 1000, load: () => Promise.reject(new ForeignMissingConfigError(["DISCORD_USER_ID"])) });
+    expect(result).toEqual({ status: "missing-config", missing: ["DISCORD_USER_ID"] });
+  });
+
+  it("does not mistake an ordinary error for an upstream error", async () => {
+    const result = await toLoaded({ key: "k-plain", ttlMs: 1000, load: () => Promise.reject(new Error("boom")) });
+    expect(result).toMatchObject({ status: "unavailable", reason: "upstream", detail: "k-plain: upstream" });
+  });
+});

@@ -6,7 +6,7 @@ import type { Loaded, Repository } from "@/data/types";
 import { cleanText } from "@/lib/sanitize";
 import { toLoaded } from "@/lib/server/cache";
 import { serverEnv } from "@/lib/server/env";
-import { fetchUpstreamJson, UpstreamError } from "@/lib/server/http";
+import { fetchUpstreamJson, isUpstreamError } from "@/lib/server/http";
 
 const PER_PAGE = 100;
 /** Safety net against a runaway Link chain; 50 pages is 5,000 repositories. */
@@ -99,7 +99,7 @@ async function fetchWithTokenFallback(username: string): Promise<Repository[]> {
   try {
     return await fetchAllRepositories(username, token);
   } catch (error) {
-    if (token && error instanceof UpstreamError && error.kind === "auth") {
+    if (token && isUpstreamError(error) && error.kind === "auth") {
       console.warn("[github] GITHUB_TOKEN was rejected (401); listing public repositories without it");
       return fetchAllRepositories(username, undefined);
     }

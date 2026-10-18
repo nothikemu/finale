@@ -161,10 +161,10 @@ Every data panel has distinct **loading** (static skeleton), **success**, **legi
 npm run lint
 npm run typecheck
 npm test              # unit tests (Vitest)
-npm run test:e2e      # builds, starts ten servers, runs Playwright
+npm run test:e2e      # builds, starts eleven servers, runs Playwright
 ```
 
-The e2e suite needs no credentials or live services (run `npx playwright install chromium` once if Playwright has no browser yet). It starts the production build ten times: healthy upstreams, nothing configured, a total upstream outage, a rejected GitHub token, an outage with owner diagnostics, a no-credentials run with GitHub's public pages, a run where the server (but not the browser) can reach Lanyard, one with nothing configured and owner hints on, one with nothing configured and `SHOW_DIAGNOSTICS` unset (the owner is recognised by viewing from localhost), and one with only guessed ListenBrainz usernames. Upstream GitHub/ListenBrainz responses come from `tests/e2e/fixtures/upstream-preload.mjs`, a **test-only** `NODE_OPTIONS=--import` preload that is never part of the app; Lanyard (REST and WebSocket) is mocked inside the browser, and the server's own view of Lanyard is selected per server by `LANYARD_FIXTURE`. Fake secrets are used so the suite can prove they never reach HTML, scripts, API responses or storage.
+The e2e suite needs no credentials or live services (run `npx playwright install chromium` once if Playwright has no browser yet). It starts the production build eleven times: healthy upstreams, nothing configured, a total upstream outage, a rejected GitHub token, an outage with owner diagnostics, a no-credentials run with GitHub's public pages, a run where the server (but not the browser) can reach Lanyard, one with nothing configured and owner hints on, one with nothing configured and `SHOW_DIAGNOSTICS` unset (the owner is recognised by viewing from localhost), one with only guessed ListenBrainz usernames, and one where ListenBrainz is unreachable (to check that the page, the API and `/status` agree on the cause). Upstream GitHub/ListenBrainz responses come from `tests/e2e/fixtures/upstream-preload.mjs`, a **test-only** `NODE_OPTIONS=--import` preload that is never part of the app; Lanyard (REST and WebSocket) is mocked inside the browser, and the server's own view of Lanyard is selected per server by `LANYARD_FIXTURE`. Fake secrets are used so the suite can prove they never reach HTML, scripts, API responses or storage.
 
 ## Verification
 
@@ -172,8 +172,8 @@ Results at release (Chromium via Playwright, Node 22):
 
 | Check | Result |
 | --- | --- |
-| Unit tests | 165 passed |
-| End-to-end tests | 171 passed, consecutive runs on a fresh build (layout, content, interaction, states, security, accessibility, cross-state consistency, resilience, doctor) |
+| Unit tests | 169 passed |
+| End-to-end tests | 172 passed, consecutive runs on a fresh build (layout, content, interaction, states, security, accessibility, cross-state consistency, resilience, doctor) |
 | ESLint, `tsc --noEmit`, production `next build` | clean |
 | `npm audit --omit=dev` | 0 vulnerabilities (dev-only advisories exist in test tooling) |
 | axe-core (WCAG 2.0-2.2 A/AA + best practices), 1440 px and 390 px | 0 violations |

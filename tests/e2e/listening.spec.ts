@@ -59,3 +59,23 @@ test("visitors are never told which account is being read", async ({ page }) => 
   await expect(panel(page, "listening").locator(".track").first()).toBeVisible();
   await expect(panel(page, "listening")).not.toContainText("owner hint");
 });
+
+test.describe("the same cause everywhere (each route is bundled separately and shares one cache)", () => {
+  test.use({ baseURL: URLS.listenbrainzBlocked });
+
+  test("the page, /api/listening and /status all say the service could not be reached, not a vague 'upstream' error", async ({ page, request }) => {
+    // The page goes first: it is what fills the shared cache with the failure.
+    await mockLanyard(page, presenceFixture());
+    await page.goto("/");
+    const hint = panel(page, "listening").locator(".state__hint");
+    await expect(hint).toContainText("listenbrainz: network");
+    await expect(hint).toContainText("could not reach the service");
+
+    const api = await request.get("/api/listening");
+    expect(await api.json()).toMatchObject({ status: "unavailable", reason: "network" });
+
+    const status = await (await request.get("/status")).text();
+    expect(status).toMatch(/FAIL\s+listenbrainz\s+.*listenbrainz: network.*could not reach the service/);
+    expect(status).toContain("cannot reach api.listenbrainz.org");
+  });
+});
