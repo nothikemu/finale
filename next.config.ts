@@ -50,6 +50,11 @@ const config: NextConfig = {
       { source: "/api/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       { source: "/status", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       {
+        // Small, rarely changing files that every page view would otherwise revalidate.
+        source: "/:file(icon\\.svg|apple-icon\\.png|manifest\\.webmanifest)",
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
+      },
+      {
         // Filenames are not content-hashed (scripts/build-fonts.py writes fixed names),
         // so cache for a week and revalidate in the background rather than "immutable".
         source: "/fonts/:file*",

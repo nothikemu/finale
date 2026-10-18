@@ -52,12 +52,11 @@ describe("formatStatus", () => {
     expect(text).not.toContain("what to do");
   });
 
-  it("says why the page is visible, and that visitors do not get it", () => {
+  it("says why the page is visible, and warns that it is readable while on", () => {
     expect(formatStatus(input({ visibleBecause: "SHOW_DIAGNOSTICS" }))).toContain("shown because SHOW_DIAGNOSTICS is on");
     expect(formatStatus(input({ visibleBecause: "development build" }))).toContain("shown because this is a development build");
-    const local = formatStatus(input({ visibleBecause: "local viewer" }));
-    expect(local).toContain("viewing it from the machine running the server (visitors get a 404)");
-    expect(local).toContain("Set SHOW_DIAGNOSTICS=0 to hide it everywhere");
+    const warning = formatStatus(input());
+    expect(warning).toContain("Anyone who knows this address can read this page while it is on");
   });
 
   it("says where each setting came from and never prints a credential", () => {

@@ -208,7 +208,7 @@ test("the blank template, which is what copying .env.example over a filled-in fi
   const template = ["DISCORD_USER_ID=", "LISTENBRAINZ_USERNAME=", "LISTENBRAINZ_TOKEN=", "GITHUB_TOKEN=", "SHOW_DIAGNOSTICS="].join("\n");
   const { out, status } = doctor({ envFile: template });
   expect(out).toMatch(/FAIL\s+\.env\.local lists .* but every value is empty: it looks like the blank template/);
-  expect(out).toContain("copying .env.example over it replaces your values with blanks");
+  expect(out).toContain("restore your values from the original download or a backup");
   expect(status).toBe(1);
 });
 
@@ -221,4 +221,32 @@ test("a stale .env.development.local that outranks .env.local in 'npm run dev' i
   const { out } = doctor({ envFile: ENV_BASE, files: { ".env.development.local": "DISCORD_USER_ID=\n" } });
   expect(out).toMatch(/WARN\s+\.env\.development\.local also sets DISCORD_USER_ID \(empty\); in 'npm run dev' it outranks \.env\.local/);
   expect(out).toContain("fix: delete .env.development.local");
+});
+
+test("settings that come from the shell, as in Docker, are not reported as a missing file", async () => {
+  const { out, status } = doctor({ env: { DISCORD_USER_ID: TEST_DISCORD_ID, LISTENBRAINZ_USERNAME: "fixture-user" } });
+  expect(out).toContain("no environment file here: the settings come from this shell's environment");
+  expect(out).not.toMatch(/FAIL\s+no \.env\.local/);
+  expect(out).toMatch(/PASS\s+50 recent listens found for "fixture-user"/);
+  expect(status).toBe(0);
+});
+
+test("with no file and no settings anywhere it is still a failure", async () => {
+  const { out, status } = doctor();
+  expect(out).toMatch(/FAIL\s+no \.env\.local \(or \.env\) file in this folder/);
+  expect(status).toBe(1);
+});
+
+test("an identity.ts alone is enough, as on a host that never receives .env.local", async () => {
+  const identityFile = `export const identity = {\n  discordUserId: "${TEST_DISCORD_ID}" as string | null,\n  listenbrainzUsername: "fixture-user" as string | null,\n  showDiagnostics: false,\n};\n`;
+  const { out, status } = doctor({ identityFile });
+  expect(out).toContain("no environment file here");
+  expect(status).toBe(0);
+});
+
+test("names are read the way the site reads them: 'a or b', @name and a pasted profile address", async () => {
+  for (const names of ["not-a-user or fixture-user", "@not-a-user; fixture-user", "https://listenbrainz.org/user/fixture-user/"]) {
+    const { out } = doctor({ envFile: [ENV_BASE, `LISTENBRAINZ_USERNAME=${names}`].join("\n") });
+    expect(out, names).toMatch(/PASS\s+50 recent listens found for "fixture-user"/);
+  }
 });

@@ -63,7 +63,8 @@
 
 @keyframes panel-in {
   from {
-    opacity: 0;
+    /* 1% rather than 0: the browser then counts the first frame of the fade as content painted (faster FCP) */
+    opacity: 0.01;
     transform: translateY(6px);
   }
   to {
@@ -131,8 +132,27 @@
   mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
 }
 
+/*
+ * The fade above also fades an outline drawn on the region itself, leaving no ring along its bottom edge.
+ * Where :has() exists the ring is drawn on the (unmasked) panel instead; elsewhere the region keeps its own.
+ */
+.scroll {
+  scroll-padding-block-end: 28px; /* a focused link rests clear of the fade */
+}
+
 .scroll:focus-visible {
   outline-offset: -1px;
+}
+
+@supports selector(:has(*)) {
+  .scroll:focus-visible {
+    outline: none;
+  }
+
+  .panel:has(.scroll:focus-visible) {
+    outline: 1px solid var(--quartz);
+    outline-offset: 2px;
+  }
 }
 
 /* ---- shared small parts ------------------------------------------------ */

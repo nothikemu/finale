@@ -52,8 +52,8 @@ test.describe("panel footprint is constant across loading, loaded, unconfigured 
     await page.goto("/");
     await expect(panel(page, "discord").locator(".skeleton").first()).toBeVisible();
     await settle(page);
-    expect((await panel(page, "discord").boundingBox())!.height).toBeGreaterThanOrEqual(359.5);
-    expect(await panel(page, "discord").evaluate((el) => getComputedStyle(el).minHeight)).toBe("360px");
+    // a fixed footprint on phones: the card scrolls inside it, so nothing below it moves when presence arrives
+    expect((await panel(page, "discord").boundingBox())!.height).toBe(460);
 
     // not configured (server-rendered shell)
     await page.goto(`${URLS.unconfigured}/`);

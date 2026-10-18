@@ -147,6 +147,9 @@ describe("asset resolution", () => {
       "https://media.discordapp.net/external/abc/https/example.com/x.png",
     );
     expect(resolveActivityImage("spotify:ab67616d0000b273aabbccddeeff", undefined)).toBe("https://i.scdn.co/image/ab67616d0000b273aabbccddeeff");
+    for (const sneaky of ["mp:external/../../x.png", "mp:attachments/1/../../../etc/x", "mp:external/%2e%2e/x", "mp:external/a/./b", "mp:external/.."]) {
+      expect(resolveActivityImage(sneaky, undefined), sneaky).toBeNull();
+    }
     expect(resolveActivityImage("youtube:abc", undefined)).toBeNull();
     expect(resolveActivityImage("mp:evil/../x", undefined)).toBeNull();
     expect(resolveActivityImage("1234567890", undefined)).toBeNull();

@@ -124,6 +124,29 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * Links are one line of text, about 17px tall. An invisible layer extends the hit area to about 27px without
+ * changing the layout or the focus ring, which still follows the text.
+ */
+.track__title a,
+.activity__title a,
+.project__name {
+  position: relative;
+}
+
+.track__title a::after,
+.activity__title a::after,
+.project__name::after {
+  content: "";
+  position: absolute;
+  inset: -5px -3px;
+}
+
+/* Keeps the last word and the arrow together, so the arrow is never stranded on a line of its own. */
+.nowrap {
+  white-space: nowrap;
+}
+
 .track__title a:hover,
 .track__title a:focus-visible,
 .activity__title a:hover,
@@ -314,6 +337,13 @@
   padding: 3px;
 }
 
+/* From a tablet's width the panel has room for slightly tighter cells, so the year fits without a clipped column. */
+@media (min-width: 768px) {
+  .calendar__grid {
+    min-width: 640px;
+  }
+}
+
 .calendar__weekdays {
   position: sticky;
   left: 0;
@@ -433,7 +463,7 @@
 .discord__label,
 .discord__connection {
   position: absolute;
-  top: 12px;
+  top: 21px; /* the same line as the other panels' headings */
   z-index: 1;
   padding: 1px 8px;
   border: 1px solid var(--border);

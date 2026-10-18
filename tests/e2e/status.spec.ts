@@ -47,7 +47,7 @@ test.describe("the owner, with diagnostics on", () => {
   test("shows the build, the folder, the public IDs in use and what environment files sit there", async ({ request }) => {
     const text = await (await request.get(`${URLS.serverLanyard}/status`)).text();
     expect(text).toMatch(/build\s+\S+ \(made \d{4}-\d\d-\d\d \d\d:\d\d UTC\)/);
-    expect(text).toMatch(/folder\s+\//);
+    expect(text).toMatch(/folder\s+\.\.\.\//);
     expect(text).toContain("Discord ID in use:  100000000000000001 (18 digits");
     expect(text).toContain("environment files in that folder");
     // names and sizes only: a file's contents never appear
@@ -114,47 +114,39 @@ test("the working server's pages never link to /status", async ({ page }) => {
   expect(await page.locator('a[href*="status"]').count()).toBe(0);
 });
 
-test.describe("the owner is recognised by viewing from the machine running the server", () => {
-  const NOT_LOCAL = { host: "dashboard.example.com" };
+test.describe("nothing a client sends can unlock owner information", () => {
+  // The server has SHOW_DIAGNOSTICS unset. Host and X-Forwarded-* are chosen by the client, so they prove nothing.
+  const ATTACKS: Record<string, Record<string, string>> = {
+    "plain request from localhost": {},
+    "Host: localhost": { host: "localhost" },
+    "Host: localhost and X-Forwarded-For: 127.0.0.1": { host: "localhost", "x-forwarded-for": "127.0.0.1" },
+    "Host: 127.0.0.1 and X-Forwarded-For: ::1": { host: "127.0.0.1", "x-forwarded-for": "::1" },
+    "X-Forwarded-Host: localhost": { "x-forwarded-host": "localhost" },
+    "Forwarded: for=127.0.0.1;host=localhost": { forwarded: "for=127.0.0.1;host=localhost" },
+    "X-Real-IP: 127.0.0.1": { "x-real-ip": "127.0.0.1" },
+  };
 
-  test("a browser on localhost gets hints and /status without any setting", async ({ page, request }) => {
+  for (const [name, headers] of Object.entries(ATTACKS)) {
+    test(`${name}: /status is a 404 and no panel shows a hint`, async ({ request }) => {
+      expect((await request.get(`${URLS.localViewer}/status`, { headers })).status()).toBe(404);
+      const html = await (await request.get(`${URLS.localViewer}/`, { headers })).text();
+      expect(html).toContain("presence not configured");
+      expect(html).not.toContain("did not reach this server");
+      expect(html).not.toContain("/status");
+    });
+  }
+
+  test("a browser on localhost gets no hints either, so a local owner turns them on explicitly", async ({ page }) => {
     await mockLanyard(page, presenceFixture());
     await page.goto(`${URLS.localViewer}/`);
-    await expect(panel(page, "discord").locator(".state__hint")).toContainText("DISCORD_USER_ID did not reach this server");
-    await expect(panel(page, "listening").locator(".state__hint")).toContainText("/status");
-
-    const response = await request.get(`${URLS.localViewer}/status`);
-    expect(response.status()).toBe(200);
-    const text = await response.text();
-    expect(text).toContain("you are viewing it from the machine running the server (visitors get a 404)");
-    expect(text).toMatch(/DISCORD_USER_ID\s+not set/);
+    await expect(panel(page, "discord")).toContainText("presence not configured");
+    await expect(panel(page, "discord").locator(".state__hint")).toHaveCount(0);
+    await expect(panel(page, "listening").locator(".state__hint")).toHaveCount(0);
   });
 
-  test("the same server shows a visitor on a public hostname nothing of the sort", async ({ request }) => {
-    const status = await request.get(`${URLS.localViewer}/status`, { headers: NOT_LOCAL });
-    expect(status.status()).toBe(404);
-
-    const html = await (await request.get(`${URLS.localViewer}/`, { headers: NOT_LOCAL })).text();
-    expect(html).toContain("presence not configured");
-    expect(html).toContain("listening not configured");
-    expect(html).not.toContain("did not reach this server");
-    expect(html).not.toContain("DISCORD_USER_ID");
-    expect(html).not.toContain("/status");
-  });
-
-  test("a request that came through a proxy is never taken for the owner, even if the proxy rewrote Host to localhost", async ({ request }) => {
-    for (const header of ["x-forwarded-for", "x-forwarded-host", "forwarded", "x-real-ip", "cf-connecting-ip"]) {
-      const status = await request.get(`${URLS.localViewer}/status`, { headers: { [header]: "203.0.113.9" } });
-      expect(status.status(), header).toBe(404);
-      const html = await (await request.get(`${URLS.localViewer}/`, { headers: { [header]: "203.0.113.9" } })).text();
-      expect(html, header).not.toContain("did not reach this server");
-    }
-  });
-
-  test("SHOW_DIAGNOSTICS=0 hides hints from the owner too, for previewing the visitor view", async ({ page, request }) => {
+  test("SHOW_DIAGNOSTICS=0 also keeps them off", async ({ page, request }) => {
     await mockLanyard(page, presenceFixture());
     await page.goto(`${URLS.unconfigured}/`);
-    await expect(panel(page, "discord")).toContainText("presence not configured");
     await expect(panel(page, "discord").locator(".state__hint")).toHaveCount(0);
     expect((await request.get(`${URLS.unconfigured}/status`)).status()).toBe(404);
   });

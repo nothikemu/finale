@@ -53,10 +53,16 @@ export function CalendarInteractive({ children }: { children: ReactNode }) {
       if (!root.current?.contains(event.target as Node)) hide();
     };
     document.addEventListener("pointerdown", outside);
+    // Escape dismisses a tooltip however it was opened (a hover has no key handler of its own).
+    const escape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") hide();
+    };
+    document.addEventListener("keydown", escape);
     return () => {
       window.removeEventListener("scroll", dismiss, { capture: true });
       window.removeEventListener("resize", dismiss);
       document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
     };
   }, [tip, hide]);
 
@@ -123,7 +129,7 @@ export function CalendarInteractive({ children }: { children: ReactNode }) {
         col += 1;
         break;
       case "Home":
-        col = 0;
+        col = Number.MIN_SAFE_INTEGER; // the first cell that exists in this row (the first week can be partial)
         break;
       case "End":
         col = Number.MAX_SAFE_INTEGER;
@@ -133,10 +139,14 @@ export function CalendarInteractive({ children }: { children: ReactNode }) {
     }
     event.preventDefault();
     const cells = Array.from(root.current?.querySelectorAll<SVGRectElement>(`${CELL_SELECTOR}[data-row="${row}"]`) ?? []);
+    const extreme = (better: (a: number, b: number) => boolean) =>
+      cells.reduce<SVGRectElement | undefined>((a, b) => (!a || better(Number(b.dataset.col), Number(a.dataset.col)) ? b : a), undefined);
     const target =
       col === Number.MAX_SAFE_INTEGER
-        ? cells.reduce<SVGRectElement | undefined>((a, b) => (!a || Number(b.dataset.col) > Number(a.dataset.col) ? b : a), undefined)
-        : cells.find((candidate) => Number(candidate.dataset.col) === col);
+        ? extreme((b, a) => b > a)
+        : col === Number.MIN_SAFE_INTEGER
+          ? extreme((b, a) => b < a)
+          : cells.find((candidate) => Number(candidate.dataset.col) === col);
     target?.focus({ preventScroll: false });
   }
 

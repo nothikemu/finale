@@ -97,6 +97,8 @@ async function fetchGraphql(username: string, token: string): Promise<Contributi
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify({ query: QUERY, variables: { login: username } }),
     },
+    timeoutMs: 5000,
+    retries: 1,
   });
   return normalizeCalendar(json);
 }

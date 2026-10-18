@@ -20,7 +20,7 @@ async function ProjectsContent() {
   const result = await loadProjects(site.githubUsername);
 
   if (result.status !== "ok") {
-    return <StateMessage hint={await failureHint(result)}>github projects unavailable</StateMessage>;
+    return <StateMessage hint={failureHint(result)}>github projects unavailable</StateMessage>;
   }
   if (result.data.length === 0) {
     return <StateMessage>no public repositories</StateMessage>;
@@ -29,7 +29,7 @@ async function ProjectsContent() {
   return (
     <>
       {result.stale ? <p className="stale-note">showing last known data</p> : null}
-      <ul className="projects">
+      <ul className="projects" role="list">
         {result.data.map((repo) => (
           <li className="project" key={repo.id}>
             <a className="project__name" href={repo.url} target="_blank" rel="noopener noreferrer">

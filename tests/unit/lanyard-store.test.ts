@@ -239,6 +239,39 @@ describe("lanyard store", () => {
   });
 });
 
+describe("lanyard store: isolation", () => {
+  it("ignores a presence that belongs to someone else", () => {
+    const store = makeStore(restDown);
+    store.start();
+    const socket = FakeSocket.instances[0]!;
+    socket.emit({ op: 0, t: "PRESENCE_UPDATE", d: { ...presenceData("dnd"), discord_user: { id: "999999999999999999", username: "stranger", discriminator: "0" } } });
+    expect(store.getSnapshot().presence).toBeNull();
+    socket.emit({ op: 0, t: "PRESENCE_UPDATE", d: presenceData("online") });
+    expect(store.getSnapshot().presence?.status).toBe("online");
+    store.stop();
+  });
+
+  it("does not let a request from a stopped run fail the next run", async () => {
+    let rejectOld: (reason: unknown) => void = () => undefined;
+    let calls = 0;
+    const store = makeStore(() => {
+      calls += 1;
+      return calls === 1 ? new Promise<Response>((_, reject) => (rejectOld = reject)) : new Promise<Response>(() => undefined);
+    });
+    store.start();
+    store.stop();
+    store.start();
+    rejectOld(new TypeError("network")); // the first run's request finally dies, after the second run began
+    await vi.advanceTimersByTimeAsync(0);
+    // The second run's own request is still in flight, so its socket dropping must not read as "REST finished and failed".
+    FakeSocket.instances.at(-1)!.drop();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(store.getSnapshot().failed).toBe(false);
+    expect(store.getSnapshot().detail).toBeNull();
+    store.stop();
+  });
+});
+
 describe("lanyard store with the server fallback", () => {
   const FALLBACK = "/api/presence";
   const view = (status = "dnd") => parseLanyardPresence({ ...presenceData(status), discord_status: status })!;

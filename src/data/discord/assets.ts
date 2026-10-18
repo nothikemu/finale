@@ -52,7 +52,7 @@ export function resolveActivityImage(asset: unknown, applicationId: unknown): st
 
   if (asset.startsWith("mp:")) {
     const path = asset.slice(3);
-    if (!/^(external|attachments)\//.test(path)) return null;
+    if (!/^(external|attachments)\//.test(path) || /(^|\/)\.\.?(\/|$)|%2e/i.test(path)) return null;
     return safeHttpsUrl(`https://media.discordapp.net/${path}`, { hosts: ["media.discordapp.net"] });
   }
   if (asset.startsWith("spotify:")) {

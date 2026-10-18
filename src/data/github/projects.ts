@@ -6,7 +6,7 @@ import type { Loaded, Repository } from "@/data/types";
 import { cleanText } from "@/lib/sanitize";
 import { toLoaded } from "@/lib/server/cache";
 import { serverEnv } from "@/lib/server/env";
-import { fetchUpstreamJson, isUpstreamError } from "@/lib/server/http";
+import { fetchUpstreamJson, isUpstreamError, UpstreamError } from "@/lib/server/http";
 
 const PER_PAGE = 100;
 /** Safety net against a runaway Link chain; 50 pages is 5,000 repositories. */
@@ -71,7 +71,9 @@ async function fetchAllRepositories(username: string, token: string | undefined)
   let skipped = 0;
   for (let page = 1; page <= MAX_PAGES; page += 1) {
     const url = `https://api.github.com/users/${encodeURIComponent(username)}/repos?per_page=${PER_PAGE}&sort=updated&direction=desc&page=${page}`;
-    const { json, headers: responseHeaders } = await fetchUpstreamJson(url, { service: "github-repos", init: { headers } });
+    const { json, headers: responseHeaders } = await fetchUpstreamJson(url, { service: "github-repos", init: { headers }, timeoutMs: 5000, retries: 1 });
+    // An answer that is not a list is a failure, not an account with no repositories.
+    if (!Array.isArray(json)) throw new UpstreamError("invalid-response", "github-repos");
     const result = normalizeRepositories(json, username);
     all.push(...result.repositories);
     skipped += result.skipped;
@@ -81,6 +83,8 @@ async function fetchAllRepositories(username: string, token: string | undefined)
     if (!more) break;
   }
   if (skipped > 0) console.warn(`[github-repos] skipped ${skipped} malformed repository record(s)`);
+  // Every record unreadable is the service changing shape, not an empty account.
+  if (all.length === 0 && skipped > 0) throw new UpstreamError("invalid-response", "github-repos");
 
   // Keep the most-recently-updated-first order even if pages overlapped while paginating.
   const seen = new Set<number>();

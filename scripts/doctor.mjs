@@ -42,19 +42,22 @@ const shellHad = Object.fromEntries(SETTINGS.map((name) => [name, process.env[na
 const loaded = nextEnv.loadEnvConfig(process.cwd(), false, { info() {}, error() {} });
 const envFiles = [".env.local", ".env", ".env.production", ".env.production.local"].filter((f) => existsSync(join(process.cwd(), f)));
 if (envFiles.length) ok(`environment files found: ${envFiles.join(", ")}`);
-else {
+let pendingNoFile = null;
+if (!envFiles.length) {
   let lookalikes = [];
   try {
     lookalikes = readdirSync(process.cwd()).filter((name) => /^\.?env([._ -].*)?$/i.test(name) && !/^\.env\.example$/i.test(name));
   } catch {
     // unreadable folder: the generic message below still applies
   }
-  fail(
-    lookalikes.length ? `no .env.local in this folder, but these look like it: ${lookalikes.join(", ")}` : "no .env.local (or .env) file in this folder",
-    lookalikes.length
+  // Whether this is a problem depends on where the settings come from, which is known once they are read below.
+  pendingNoFile = {
+    lookalike: lookalikes.length > 0,
+    text: lookalikes.length ? `no .env.local in this folder, but these look like it: ${lookalikes.join(", ")}` : "no .env.local (or .env) file in this folder",
+    fix: lookalikes.length
       ? "rename it to exactly .env.local (Windows Explorer hides extensions: '.env.local.txt' shows as '.env.local')"
-      : "copy .env.example to .env.local and fill it in, or set the variables in your host's settings; dotfiles are hidden in Finder/Explorer, so check from a terminal with: ls -a",
-  );
+      : "create .env.local from .env.example (only if you have none), or set the variables in your host's settings; dotfiles are hidden in Finder/Explorer, so check from a terminal with: ls -a",
+  };
 }
 info(`looked in ${process.cwd()}`);
 
@@ -98,7 +101,7 @@ for (const name of SETTINGS) {
 for (const entry of loaded.loadedEnvFiles ?? []) {
   const assigned = SETTINGS.filter((name) => rawFileValue(entry.contents, name) !== undefined);
   if (assigned.length >= 3 && assigned.every((name) => rawFileValue(entry.contents, name) === "")) {
-    fail(`${entry.path} lists ${assigned.join(", ")} but every value is empty: it looks like the blank template`, "if you were given a filled-in .env.local, restore it: copying .env.example over it replaces your values with blanks");
+    fail(`${entry.path} lists ${assigned.join(", ")} but every value is empty: it looks like the blank template`, "if you copied .env.example over an existing .env.local, restore your values from the original download or a backup");
   }
 }
 
@@ -147,6 +150,12 @@ const lbToken = env("LISTENBRAINZ_TOKEN");
 const lbUserFromEnv = has("LISTENBRAINZ_USERNAME");
 const lbUser = lbUserFromEnv ? env("LISTENBRAINZ_USERNAME") : identityValue("listenbrainzUsername");
 const ghToken = env("GITHUB_TOKEN");
+
+if (pendingNoFile) {
+  const fromElsewhere = SETTINGS.some((name) => has(name)) || discordId !== "" || lbUser !== "";
+  if (!pendingNoFile.lookalike && fromElsewhere) info("no environment file here: the settings come from this shell's environment or src/config/identity.ts (normal for Docker and hosts)");
+  else fail(pendingNoFile.text, pendingNoFile.fix);
+}
 
 if (!discordId) {
   fail("DISCORD_USER_ID is not set: the Discord panel will say 'presence not configured'", "set DISCORD_USER_ID=<your numeric Discord ID> (or discordUserId in src/config/identity.ts)");
@@ -270,8 +279,19 @@ if (!/^\d{15,25}$/.test(discordId)) {
 
 heading("3. Recently played (ListenBrainz)");
 // Same rules as the site: a valid token says whose account this is; the username(s) are the fallback and may list several guesses.
-const lbNames = lbUser.split(",").map((name) => name.trim()).filter(Boolean);
+// Same rules as splitUsernames() in src/data/listenbrainz.ts: separators, pasted profile addresses, @names, valid characters, at most five.
+const lbEntry = (entry) => {
+  const pasted = /^(?:https?:\/\/)?(?:www\.)?listenbrainz\.org\/user\/([^/?#]+)/i.exec(entry)?.[1];
+  if (!pasted) return entry.replace(/^@+/, "");
+  try {
+    return decodeURIComponent(pasted);
+  } catch {
+    return entry;
+  }
+};
+const lbNames = [...new Set(lbUser.split(/\s*(?:[,;|]|\s+or\s+)\s*/i).map((entry) => lbEntry(entry.trim())).filter((name) => /^[^\p{C}/\\?#%]{1,128}$/u.test(name)))].slice(0, 5);
 const lbCandidates = [];
+let tokenAccount = null; // the account a valid token belongs to: yours, whatever it holds
 if (has("LISTENBRAINZ_TOKEN")) {
   const res = await request("https://api.listenbrainz.org/1/validate-token", { headers: { authorization: `Token ${lbToken}` } });
   if (res.error) (lbNames.length ? warn : (text) => fail(text, NET_FIX))(`could not reach api.listenbrainz.org to check the token: ${res.error}`);
@@ -279,6 +299,7 @@ if (has("LISTENBRAINZ_TOKEN")) {
     ok(`token is valid (ListenBrainz user: ${res.json.user_name})`);
     info(`your ListenBrainz username is "${res.json.user_name}". The site uses it, whatever LISTENBRAINZ_USERNAME says`);
     lbCandidates.push(res.json.user_name);
+    tokenAccount = res.json.user_name;
   } else if (res.status === 429) fail("ListenBrainz is rate limiting this machine", "wait a few minutes and retry");
   else if (lbNames.length) {
     warn(`ListenBrainz rejected the token (HTTP ${res.status}${res.json?.message ? `: ${res.json.message}` : ""}); the site will use the username instead`);
@@ -286,10 +307,29 @@ if (has("LISTENBRAINZ_TOKEN")) {
   } else fail(`ListenBrainz rejected the token (HTTP ${res.status}${res.json?.message ? `: ${res.json.message}` : ""})`, "set LISTENBRAINZ_USERNAME (public listens need no token), or create a new token at https://listenbrainz.org/settings/ and update LISTENBRAINZ_TOKEN");
 }
 for (const name of lbNames) if (!lbCandidates.includes(name)) lbCandidates.push(name);
-if (lbCandidates.length === 0) warn("skipped: no usable ListenBrainz token or username");
+if (lbCandidates.length === 0) warn("skipped: no ListenBrainz username is set and no token could be used");
 
 let lbName;
 const unknownNames = [];
+let emptyAccount = null;
+
+function reportListens(candidate, res) {
+  lbName = candidate;
+  if (res.status !== 200 || !Array.isArray(res.json?.payload?.listens)) return fail(`listens request answered HTTP ${res.status}`, "try again shortly");
+  const listens = res.json.payload.listens;
+  const spotify = listens.filter((l) => {
+    const i = l?.track_metadata?.additional_info ?? {};
+    return String(i.music_service ?? "").toLowerCase() === "spotify.com" || String(i.music_service_name ?? "").toLowerCase() === "spotify" || String(i.spotify_id ?? "").includes("open.spotify.com/track/");
+  }).length;
+  if (listens.length === 0) {
+    return fail(`ListenBrainz knows "${candidate}" but returned 0 listens, so the panel will say 'no recent listens'`, "connect Spotify under ListenBrainz > Settings > Connect services (or import your history), then play something");
+  }
+  ok(`${listens.length} recent listens found for "${candidate}" (${spotify} marked as coming from Spotify)`);
+  const newest = Number(listens[0]?.listened_at);
+  if (newest) info(`most recent listen: ${new Date(newest * 1000).toISOString()}`);
+  if (spotify > 0 && spotify < listens.length) info("because some listens are marked as Spotify, only those are shown");
+}
+
 for (const candidate of lbCandidates) {
   const res = await request(`https://api.listenbrainz.org/1/user/${encodeURIComponent(candidate)}/listens?count=50`);
   if (res.error) {
@@ -301,27 +341,19 @@ for (const candidate of lbCandidates) {
     if (lbCandidates.length > 1) info(`ListenBrainz has no user named "${candidate}"; trying the next one`);
     continue;
   }
-  lbName = candidate;
-  if (res.status !== 200 || !Array.isArray(res.json?.payload?.listens)) fail(`listens request answered HTTP ${res.status}`, "try again shortly");
-  else {
-    const listens = res.json.payload.listens;
-    const spotify = listens.filter((l) => {
-      const i = l?.track_metadata?.additional_info ?? {};
-      return String(i.music_service ?? "").toLowerCase() === "spotify.com" || String(i.music_service_name ?? "").toLowerCase() === "spotify" || String(i.spotify_id ?? "").includes("open.spotify.com/track/");
-    }).length;
-    if (listens.length === 0) {
-      fail(`ListenBrainz knows "${candidate}" but returned 0 listens, so the panel will say 'no recent listens'`, "connect Spotify under ListenBrainz > Settings > Connect services (or import your history), then play something");
-    } else {
-      ok(`${listens.length} recent listens found for "${candidate}" (${spotify} marked as coming from Spotify)`);
-      const newest = Number(listens[0]?.listened_at);
-      if (newest) info(`most recent listen: ${new Date(newest * 1000).toISOString()}`);
-      if (spotify > 0 && spotify < listens.length) info("because some listens are marked as Spotify, only those are shown");
-    }
+  const count = res.status === 200 && Array.isArray(res.json?.payload?.listens) ? res.json.payload.listens.length : -1;
+  // As on the site: the token's account is yours whatever it holds; among guessed spellings one with listens wins.
+  if (candidate !== tokenAccount && count === 0 && lbCandidates.length > 1) {
+    emptyAccount ??= { candidate, res };
+    info(`"${candidate}" exists but has no listens; trying the next one`);
+    continue;
   }
+  reportListens(candidate, res);
   break;
 }
+if (!lbName && emptyAccount) reportListens(emptyAccount.candidate, emptyAccount.res);
 if (!lbName && unknownNames.length > 0 && unknownNames.length === lbCandidates.length) {
-  fail(`ListenBrainz has no user named ${unknownNames.map((name) => `"${name}"`).join(" or ")}`, "use the name in the address of your profile (listenbrainz.org/user/<name>); several guesses can be listed separated by commas");
+  fail(`ListenBrainz has no user named ${unknownNames.map((name) => `"${name}"`).join(" or ")}`, "use the name in the address of your profile (listenbrainz.org/user/<name>); several guesses can be listed, separated by commas, semicolons or \"or\"");
 }
 
 // ---- GitHub ------------------------------------------------------------------------
@@ -395,7 +427,7 @@ if (pub.error) {
 heading("Summary");
 if (problems.length === 0) {
   console.log(`  ${paint(32, "Everything the site needs is reachable from this machine.")}`);
-  console.log("  If a panel still shows nothing, restart the server after editing .env.local, then open /api/listening, /api/github/projects and /api/github/contributions in the browser to see each panel's status.");
+  console.log("  If a panel still shows nothing, restart the server after editing .env.local, then start it with SHOW_DIAGNOSTICS=1 and open /status (or /api/presence, /api/listening, /api/github/projects and /api/github/contributions) to see each panel's status.");
 } else {
   console.log(`  ${paint(31, `${problems.length} problem${problems.length === 1 ? "" : "s"} found.`)} Fix the FAIL lines above, restart the server, and run this again.`);
   process.exitCode = 1;

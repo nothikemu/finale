@@ -82,6 +82,8 @@ export async function cached<T>({ key, ttlMs, load }: CacheOptions<T>): Promise<
     } catch (error) {
       if (isMissingConfigError(error)) throw error;
       const upstream = isUpstreamError(error) ? error : new UpstreamError("upstream", key);
+      // Status and kind only: never the request, headers or credentials. Once per refresh, not once per visitor.
+      console.warn(`[upstream] ${upstream.message}`);
       const cooldown = Math.min(MAX_COOLDOWN_MS, upstream.retryAfterMs ?? ERROR_COOLDOWN_MS);
       target.blockedUntil = Date.now() + Math.max(cooldown, 1000);
       target.lastError = upstream;
@@ -103,16 +105,33 @@ async function resolveInflight<T>(entry: Entry): Promise<CacheResult<T>> {
   }
 }
 
+/** The longest a visitor's page waits for any one upstream; the refresh itself carries on in the background. */
+export const DEADLINE_MS = 12_000;
+
+function withDeadline<T>(promise: Promise<T>, key: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new UpstreamError("timeout", key)), DEADLINE_MS);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 /** Runs a cached loader and folds every failure into a renderable state. */
 export async function toLoaded<T>(options: CacheOptions<T>): Promise<Loaded<T>> {
   try {
-    const result = await cached(options);
+    const result = await withDeadline(cached(options), options.key);
     return { status: "ok", data: result.data, fetchedAt: result.fetchedAt, stale: result.stale };
   } catch (error) {
     if (isMissingConfigError(error)) return { status: "missing-config", missing: error.missing };
     const upstream = isUpstreamError(error) ? error : new UpstreamError("upstream", options.key);
-    // Status and kind only: never the request, headers or credentials.
-    console.warn(`[upstream] ${upstream.message}`);
     return { status: "unavailable", reason: upstream.reason, detail: upstream.message };
   }
 }

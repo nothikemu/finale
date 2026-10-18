@@ -1,6 +1,5 @@
 import "server-only";
 
-import { z } from "zod";
 import type { ContributionCalendar, ContributionDay, ContributionLevel } from "@/data/types";
 import { fetchUpstreamText, UpstreamError } from "@/lib/server/http";
 
@@ -85,15 +84,14 @@ export function parsePublicCalendar(html: string): ContributionCalendar {
   };
 }
 
-const calendarShape = z.object({ total: z.number().int().nonnegative(), weeks: z.array(z.array(z.object({ date: z.string(), count: z.number(), level: z.number() }))).min(1) });
-
 export async function fetchPublicCalendar(username: string): Promise<ContributionCalendar> {
   const html = await fetchUpstreamText(`https://github.com/users/${encodeURIComponent(username)}/contributions`, {
     service: "github-public",
     init: { headers: { accept: "text/html" } },
+    timeoutMs: 5000,
+    retries: 1,
   });
   const calendar = parsePublicCalendar(html);
-  if (!calendarShape.safeParse(calendar).success) throw new UpstreamError("invalid-response", "github-public");
   // The page also states its own total. A mismatch is not fatal (we show the days we parsed) but is worth knowing.
   const stated = /([\d,]+)\s+contributions?\s+in\s+the\s+last\s+year/i.exec(html)?.[1];
   if (stated && Number(stated.replace(/,/g, "")) !== calendar.total) {

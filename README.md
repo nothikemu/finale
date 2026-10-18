@@ -7,6 +7,7 @@ Precision-cut smoked glass over an OLED-black page: true `#000` background, quar
 - **Stack:** Next.js 16 (App Router) · React 19 · TypeScript · plain CSS with centralised tokens · inline SVG
 - **Server components** render structure and initial data; **small client islands** handle only what is live (Discord socket, listening refresh, calendar tooltip, word taps).
 - **Read-only:** the site never writes to Discord, GitHub or ListenBrainz.
+- **Deploying?** Go to [Deployment](#deployment): Vercel in a few minutes, or Docker.
 
 ## Quick start
 
@@ -24,9 +25,9 @@ if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }          
 
 Requires Node 20.9+. Production: `npm run build && npm start` (stop any server that is already running first; two copies cannot share a port, and the browser keeps showing the old one. Use the address the terminal prints. `/status` shows which build and folder you are talking to). Run the doctor as `npm run doctor`; plain `npm doctor` is a different, built-in npm command.
 
-**A panel shows nothing?** Open **<http://localhost:3000/status>** (the port your server prints), or run `npm run doctor`. Either one shows what the server actually received and checks every live service, then says what to fix. See [Troubleshooting](#troubleshooting).
+**A panel shows nothing?** Run `npm run doctor`, or start the site with `SHOW_DIAGNOSTICS=1` and open **<http://localhost:3000/status>** (use the port your server prints). Either one shows what the server actually received and checks every live service, then says what to fix. See [Troubleshooting](#troubleshooting).
 
-With nothing configured the site still runs: each integration shows an understated "not configured" (or, if it cannot be reached, "unavailable") state, and in development only, the variable to set. Nothing is ever faked.
+With nothing configured the site still runs: each integration shows an understated "not configured" (or, if it cannot be reached, "unavailable") state. Nothing is ever faked. Only the owner (in `npm run dev`, or with `SHOW_DIAGNOSTICS=1`) sees a line saying what to set; visitors never do.
 
 ## Configuration
 
@@ -39,8 +40,8 @@ Set these in `.env.local` for development and in your host's secret manager for 
 | `DISCORD_USER_ID` | Discord panel | No (public ID) | Numeric Discord user ID. Not inferred from the GitHub username; there is no default. |
 | `LISTENBRAINZ_USERNAME` | Recently played | No | Your ListenBrainz username, the name in your profile address (`listenbrainz.org/user/<name>`; pasting the whole address works). Public listens need no token. Unsure of the spelling? List several (`nothikemu,hikemu`, or `nothikemu or hikemu`): the first one that exists and has listens is used. |
 | `LISTENBRAINZ_TOKEN` | Recently played | **Yes, server only** | Optional. Used once (cached 6 h) to ask ListenBrainz whose token it is via `GET /1/validate-token`; a valid token decides the account. Never sent to the browser. If it is rejected (for example after you reset it), the username is used instead. |
-| `GITHUB_TOKEN` | Contribution calendar (required), projects (optional, raises rate limit) | **Yes, server only** | See below for the least-privilege setup. |
-| `SHOW_DIAGNOSTICS` | Troubleshooting | No | `1` shows owner-only hints inside failing panels and enables `/status`. `0` hides them everywhere, even on your own machine (to preview the visitor view). Unset: hints show in `npm run dev` and when the page is opened from the machine running the server (`localhost`); remote visitors never see them. |
+| `GITHUB_TOKEN` | GitHub projects and calendar | **Yes, server only** | Optional but recommended: without it GitHub allows 60 anonymous requests an hour per IP (the calendar then uses GitHub's public graph, and shared hosts can hit "rate-limited"). A read-only fine-grained token fixes that; see below. |
+| `SHOW_DIAGNOSTICS` | Troubleshooting | No | `1` shows owner-only hints inside failing panels and serves `/status` (readable by anyone who knows the address while it is on). `0` keeps both off, even in `npm run dev`. Unset: on in `npm run dev`, off in a production build. A server cannot tell who is looking (Host and `X-Forwarded-*` are chosen by the sender), so it never guesses. |
 | `PROFILE_BANNER_URL` | Discord banner | No | Optional `https://` image. Last-resort fallback: used only if Lanyard returns no banner and the `banner` KV key is empty. |
 | `PROFILE_BIO` | Discord bio | No | Optional text. Last-resort fallback: used only if Lanyard returns no bio and the `bio` KV key is empty. |
 
@@ -88,19 +89,19 @@ The calendar labels its total "contributions" (GitHub's calendar includes more t
 
 Panels say what is wrong in plain words ("listening not configured", "github projects unavailable"). To find out **why**, work down this list:
 
-1. **Open `/status`** (for example <http://localhost:3000/status>). It is a plain-text report from the *running server*: which settings arrived and where from (never their values), then one live check each for Discord (Lanyard), ListenBrainz (with the account it found) and GitHub, and what to do about every FAIL. It works on the machine running the server without any setting, and on a hosted site once diagnostics are on (see the table). Visitors get a 404. If something still looks wrong, paste the page to whoever is helping you; it contains no credentials.
+1. **Open `/status`** (for example <http://localhost:3000/status>; it needs `SHOW_DIAGNOSTICS=1` or `npm run dev`). It is a plain-text report from the *running server*: which settings arrived and where from (never their values), then one live check each for Discord (Lanyard), ListenBrainz (with the account it found) and GitHub, and what to do about every FAIL. It works on a hosted site too once diagnostics are on, and returns a plain 404 when they are off. If something still looks wrong, copy the page into an issue or a message; it contains no credentials.
 2. **Run `npm run doctor`** in the project folder, on the machine that runs the site. It reports on your env file (including UTF-16 saves, a `.env.local.txt`, shell variables that override the file, and `NODE_ENV=test`), then every service. It does not see a *hosted* site's settings; use `/status` there.
 3. **Open the status routes** in your browser: `/api/listening`, `/api/presence`, `/api/github/projects`, `/api/github/contributions`. A failing one returns `{"status":"unavailable","reason":"auth","detail":"github-graphql: auth (401)"}` or `{"status":"missing-config",...}`.
-4. **Hints inside panels.** They appear in `npm run dev`, when you open the page on the machine running the server (a request that came through a proxy or CDN never counts as local), and anywhere `SHOW_DIAGNOSTICS=1` (or `showDiagnostics: true` in `src/config/identity.ts`) is set. Turn them off with `SHOW_DIAGNOSTICS=0`.
+4. **Hints inside panels.** They appear in `npm run dev`, and anywhere `SHOW_DIAGNOSTICS=1` (or `showDiagnostics: true` in `src/config/identity.ts`) is set. `SHOW_DIAGNOSTICS=0` turns them off everywhere. Switch them off again once everything works.
 5. **Restart the server** after changing `.env.local`; environment files are read at startup. Stop any old server first: a second `npm start` on the same port fails while the browser keeps showing the old one.
 
 Common causes:
 
 | Symptom | Cause and fix |
 | --- | --- |
-| Discord says "presence not configured" and listening says "listening not configured", while the two GitHub panels work | **The settings never reached the server.** GitHub needs no credentials, so it looks fine either way. Locally: `.env.local` must be named exactly that (Explorer hides `.txt`), sit next to `package.json`, be saved as UTF-8 (PowerShell's `>` writes UTF-16, which is ignored), and the server must be restarted. A variable already set in your shell overrides the file. On Vercel, Netlify and similar hosts `.env.local` is **never uploaded**: add the variables in the host's *Environment Variables*, make sure they apply to the Production environment, and **redeploy** (they are not applied to a running deployment). Or set `discordUserId` and `listenbrainzUsername` in `src/config/identity.ts`, which travels with the project (run `npm run build` again after editing it). `/status` shows exactly what arrived, the files it found, and the build that is running. |
-| The Discord panel stays on grey bars and never changes | The page's scripts did not start. In `npm run dev`, Next.js refuses its dev socket when the page is opened by anything but `localhost` (a LAN IP, a tunnel, sometimes `127.0.0.1`), so open `http://localhost:PORT`. After about 14 seconds the panel says so itself. Also check the browser console. |
-| The site works locally but my deployed copy is missing these fixes | A host deploys the branch you point it at. Merge or push the branch you want live. |
+| Discord says "presence not configured" and listening says "listening not configured", while the two GitHub panels work | **The settings never reached the server.** GitHub needs no credentials, so it looks fine either way. Locally: `.env.local` must be named exactly that (Explorer hides `.txt`), sit next to `package.json`, be saved as UTF-8 (PowerShell's `>` writes UTF-16, which is ignored), and the server must be restarted. A variable already set in your shell overrides the file. On Vercel, Netlify and similar hosts `.env.local` is **never uploaded**: add the variables in the host's *Environment Variables*, make sure they apply to the Production *and Preview* environments, and **redeploy** (they are not applied to a running deployment). Or set `discordUserId` and `listenbrainzUsername` in `src/config/identity.ts`, which travels with the project (run `npm run build` again after editing it). `/status` shows exactly what arrived, the files it found, and the build that is running. |
+| The Discord panel stays on grey bars and never changes | The page's scripts did not start. In `npm run dev`, Next.js refuses its dev socket when the page is opened by anything but `localhost` (a LAN IP or a tunnel hostname), so open `http://localhost:PORT`. After about 14 seconds the panel says so itself. Also check the browser console. |
+| The site works locally, but the deployed copy is missing a fix | A host deploys the branch you point it at. Push or merge the branch you want live, then redeploy. |
 | Discord says "presence not tracked" | Lanyard only tracks accounts in its server. Join <https://discord.gg/UrXF2cfJ7F> with that exact account. |
 | Discord says "presence unavailable" | Neither the browser nor this site's server could get presence. With `SHOW_DIAGNOSTICS=1` the panel says why, for example `the browser could not reach api.lanyard.rest; the dashboard's server could not get it either (lanyard: network)`. Run `npm run doctor`: if it can reach Lanyard, the cause is between the running server and the internet (see the proxy row below). |
 | Discord shows data but says "stale · reconnecting" | The live socket (`wss://api.lanyard.rest/socket`) is blocked for that visitor, so the panel is showing the server's snapshot, refreshed every 30 s. Allow the socket to get live updates. |
@@ -122,8 +123,8 @@ The site is a Node.js app (Next.js 16, Node 20.9+). It needs a host that runs No
 | `DISCORD_USER_ID` | host variable, or `discordUserId` in `identity.ts` | Yes, for the Discord panel |
 | `LISTENBRAINZ_USERNAME` | host variable, or `listenbrainzUsername` in `identity.ts` | Yes, for recently played (a token is optional) |
 | `GITHUB_TOKEN` | host variable **only** | **Strongly recommended.** Without it GitHub allows 60 anonymous requests an hour per IP, and a host's shared IPs use them up, so projects can show "rate-limited". A read-only fine-grained token (public repositories) removes the problem |
-| `SHOW_DIAGNOSTICS` | host variable | Leave **unset** on a public site (visitors never see hints either way). Set `1` temporarily to open `/status` |
-| `SITE_URL` | host variable | Optional. The address used in link previews; detected automatically on Vercel and from the request elsewhere |
+| `SHOW_DIAGNOSTICS` | host variable | Leave **unset** on a public site. Set `1` only while you debug (anyone who knows the address can then read `/status`), then remove it and redeploy |
+| `SITE_URL` | host variable | **Recommended on every host except Vercel** (which is detected): the public address, e.g. `https://example.com`, used in link previews. Behind a proxy the real host and scheme are often hidden from the app. Nginx users should also send `proxy_set_header X-Forwarded-Proto $scheme;` |
 
 ### Vercel
 
@@ -131,7 +132,7 @@ The site is a Node.js app (Next.js 16, Node 20.9+). It needs a host that runs No
 
 1. Put the project in a GitHub repository and make sure the branch you want live is the one Vercel builds (Vercel deploys the *production branch*, usually `main`).
 2. <https://vercel.com/new> → import the repository. The framework is detected; leave the build settings alone.
-3. Under *Environment Variables* add `DISCORD_USER_ID`, `LISTENBRAINZ_USERNAME` and `GITHUB_TOKEN` (or fill in `identity.ts` before pushing and add only the token). Apply them to **Production**.
+3. Under *Environment Variables* add `DISCORD_USER_ID`, `LISTENBRAINZ_USERNAME` and `GITHUB_TOKEN` (or fill in `identity.ts` before pushing and add only the token). Apply them to **Production and Preview**: a pull request's preview deployment otherwise has none of them.
 4. Deploy. Open the address Vercel gives you and check each panel. Add a custom domain under *Settings → Domains* if you have one.
 
 **From this folder, no GitHub needed:**
@@ -139,7 +140,7 @@ The site is a Node.js app (Next.js 16, Node 20.9+). It needs a host that runs No
 ```bash
 npm install
 npx vercel                       # first run: log in, accept the defaults; makes a preview deployment
-npx vercel env add GITHUB_TOKEN production    # paste the token when asked (repeat for the other variables if not in identity.ts)
+npx vercel env add GITHUB_TOKEN production    # paste the token when asked; repeat with `preview` for preview deployments,
 npx vercel --prod                # the live deployment
 ```
 
@@ -153,14 +154,17 @@ docker build -t dashboard .                      # or a container; the image is 
 docker run -p 3000:3000 -e DISCORD_USER_ID=... -e LISTENBRAINZ_USERNAME=... -e GITHUB_TOKEN=... dashboard
 ```
 
-Put a TLS-terminating proxy (Caddy, nginx, your platform's load balancer) in front; HSTS is sent in production. Netlify works with its Next.js runtime. Cloudflare Pages/Workers are not supported as they are (the app uses Node APIs and an in-process cache).
+Put a TLS-terminating proxy (Caddy, nginx, your platform's load balancer) in front; HSTS is sent in production. Other hosts that run Next.js (Netlify, Render, Fly.io) should work but are untested here. Cloudflare Pages/Workers are not supported as they are (the app uses Node APIs and an in-process cache).
 
 ### After you deploy
 
 - Open the site and check each panel. If one is wrong, set `SHOW_DIAGNOSTICS=1`, redeploy, open `/status`, then remove the variable again.
-- Link previews (Discord, X, iMessage) use the generated card in `src/app/opengraph-image.png`. Regenerate it with `node scripts/build-social-images.mjs` after changing the title.
+- Link previews (Discord, X, iMessage) use the generated card in `src/app/opengraph-image.png`. To change its text, edit `TITLE` and `LINES` at the top of `scripts/build-social-images.mjs`, run `npx playwright install chromium` once, then `node scripts/build-social-images.mjs` (it also regenerates the Apple icon and `favicon.ico`).
 - `robots.txt` lets search engines index the page and keeps `/api/*` and `/status` out. Those routes also send `X-Robots-Tag: noindex`.
 - **Tokens:** keep them in the host's settings only. Treat any token that was ever pasted into a chat, an issue or a commit as exposed and replace it.
+- **Privacy:** each visitor's browser contacts `api.lanyard.rest` (REST and a WebSocket, for live presence), `cdn.discordapp.com` and `media.discordapp.net` (avatars and banners), `i.scdn.co` (Spotify artwork) and `coverartarchive.org` (album art). Nothing is stored in cookies or local storage. Everything else comes from your server.
+- **Traffic:** every page view renders on the server (the data is cached per instance). On a public site put a rate limit in front (Vercel's Firewall, Cloudflare, your proxy), and on Docker or a Node host use a compressing proxy (Caddy `encode gzip zstd`, nginx `gzip on`): the listening feed refreshes every 30 s per open tab.
+- **Node:** Node 22 LTS or newer is recommended. 20.9 is the technical minimum for Next.js 16.
 
 Upstream results are cached **in process** (15 min projects, 30 min calendar, 60 s listens, 20 s now-playing) with request de-duplication, `Retry-After` cool-downs, and last-known-good data served (and labelled "showing last known data") when a refresh fails. On serverless platforms each instance has its own cache; the API routes also send CDN `Cache-Control` headers, so edge caching absorbs most traffic.
 
@@ -184,20 +188,26 @@ Everything visual comes from `src/styles/tokens.css`.
 
 ```
 src/
-  app/                 layout, page, icon, API routes (/api/listening, /api/github/projects, /api/github/contributions)
+  app/                 layout, page, 404 and error pages, robots, manifest, social images and icons,
+                       API routes (/api/listening, /api/presence, /api/github/projects, /api/github/contributions),
+                       /status (owner report)
   components/          Dashboard + one component per panel (DiscordPresence, SocialLinks, RecentListening, About, ContributionCalendar, GitHubProjects)
   config/site.ts       owner-editable copy, links, cache lifetimes
+  config/identity.ts   public identifiers (Discord ID, ListenBrainz name) that travel with the project
   data/                adapters, kept separate from visuals
-    github/            contributions (GraphQL) and projects (REST)
-    discord/           Lanyard parsing, asset resolution, badges, shared socket store
-    listenbrainz.ts    token validation, listens, playing-now
+    github/            contributions (GraphQL, with the public graph as fallback) and projects (REST)
+    discord/           Lanyard parsing, asset resolution, badges, the shared socket store, the server snapshot
+    listenbrainz.ts    account resolution (token, candidate names), listens, playing-now
     types.ts           normalised models + the Loaded<T> state union
-  lib/                 sanitising, formatting, calendar geometry, server cache + upstream HTTP
+  lib/                 sanitising, formatting, calendar geometry, owner diagnostics, server env/cache/HTTP, /status report
   styles/              tokens, base, layout, panel shell, per-panel styles, word effects
-tests/unit             Vitest: adapters, validation, cache, Lanyard store
-tests/e2e              Playwright: layout, content, interaction, states, accessibility
-scripts/build-fonts.py reproducible font build
-scripts/doctor.mjs     `npm run doctor`: live connectivity and configuration report
+tests/unit             Vitest: adapters, validation, cache, config sources, Lanyard store, status report
+tests/e2e              Playwright against production builds on eleven ports: layout, content, interaction,
+                       states, accessibility, resilience, doctor, status, site (previews, 404, headers)
+scripts/build-fonts.py          reproducible font build
+scripts/build-social-images.mjs preview card, Apple icon and favicon, rendered from the site's own fonts
+scripts/doctor.mjs              `npm run doctor`: live connectivity and configuration report
+Dockerfile                      small production image (Next standalone output)
 ```
 
 Every data panel has distinct **loading** (static skeleton), **success**, **legitimately empty**, **missing configuration**, **temporarily unavailable** and **stale** states, and one failed integration never breaks the page: panels stream and fail independently. External API responses are validated at runtime (zod on the server, hand-written guards in the browser), text is sanitised (bidi/control characters stripped) and only ever rendered as text, and outbound URLs must be `https` and, for artwork and Spotify links, on an allow-listed host.
@@ -219,8 +229,8 @@ Results at release (Chromium via Playwright, Node 22):
 
 | Check | Result |
 | --- | --- |
-| Unit tests | 169 passed |
-| End-to-end tests | 172 passed, consecutive runs on a fresh build (layout, content, interaction, states, security, accessibility, cross-state consistency, resilience, doctor) |
+| Unit tests | 188 passed |
+| End-to-end tests | 207 passed, consecutive runs on a fresh build (layout, content, interaction, states, security, accessibility, cross-state consistency, resilience, doctor) |
 | ESLint, `tsc --noEmit`, production `next build` | clean |
 | `npm audit --omit=dev` | 0 vulnerabilities (dev-only advisories exist in test tooling) |
 | axe-core (WCAG 2.0-2.2 A/AA + best practices), 1440 px and 390 px | 0 violations |

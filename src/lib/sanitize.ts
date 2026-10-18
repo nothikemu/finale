@@ -4,9 +4,11 @@
  * additionally strip invisible/bidi control characters and enforce URL rules.
  */
 
-// C0/C1 controls (minus tab/newline), zero-width space, bidi marks/embeddings/
-// overrides/isolates, word joiner and BOM. ZWJ/ZWNJ are kept so emoji sequences survive.
-const INVISIBLE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F​‎‏‪-‮⁠⁦-⁩﻿]/g;
+// C0/C1 controls (minus tab/newline), soft hyphen, combining grapheme joiner, Arabic letter mark,
+// Mongolian vowel separator, zero-width space, bidi marks/embeddings/overrides/isolates, word joiner,
+// Hangul fillers, BOM and the "tag" block. ZWJ/ZWNJ and variation selectors are kept so emoji sequences survive.
+// Written as escapes on purpose: these characters are invisible in an editor.
+const INVISIBLE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u00AD\u034F\u061C\u180E\u200B\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\u3164\uFEFF\uFFA0\u{E0000}-\u{E007F}]/gu;
 
 function clamp(value: string, max: number): string {
   const chars = Array.from(value);

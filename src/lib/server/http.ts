@@ -1,5 +1,6 @@
 import "server-only";
 
+import { site } from "@/config/site";
 import type { UnavailableReason } from "@/data/types";
 
 export type UpstreamErrorKind = "rate-limited" | "auth" | "not-found" | "bad-config" | "network" | "timeout" | "upstream" | "invalid-response";
@@ -61,7 +62,7 @@ export interface FetchOptions {
   maxInlineWaitMs?: number;
 }
 
-const USER_AGENT = "nothikemu-dashboard/1.0 (+https://github.com/nothikemu)";
+const USER_AGENT = `${site.title}-dashboard/1.0 (+https://github.com/${site.githubUsername})`;
 
 export function parseRetryAfter(headers: Headers, now = Date.now()): number | undefined {
   const retryAfter = headers.get("retry-after");
@@ -136,11 +137,18 @@ export async function fetchUpstream(url: string, options: FetchOptions): Promise
   throw lastError ?? new UpstreamError("network", service);
 }
 
-/** Like fetchUpstreamJson, for HTML. Bodies over `maxBytes` are rejected rather than buffered. */
-export async function fetchUpstreamText(url: string, options: FetchOptions, maxBytes = 2_000_000): Promise<string> {
+/**
+ * Like fetchUpstreamJson, for HTML. A body that declares itself larger than `maxChars` is refused before it
+ * is read; one that does not declare its size is read, then refused if it is longer.
+ */
+export async function fetchUpstreamText(url: string, options: FetchOptions, maxChars = 2_000_000): Promise<string> {
   const response = await fetchUpstream(url, options);
+  if (Number(response.headers.get("content-length")) > maxChars) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new UpstreamError("invalid-response", options.service, response.status);
+  }
   const text = await response.text().catch(() => "");
-  if (!text || text.length > maxBytes) throw new UpstreamError("invalid-response", options.service, response.status);
+  if (!text || text.length > maxChars) throw new UpstreamError("invalid-response", options.service, response.status);
   return text;
 }
 

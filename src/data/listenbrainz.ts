@@ -88,6 +88,16 @@ function toTrack(raw: RawListen, id: string): Track | null {
   };
 }
 
+/** FNV-1a, 32 bits: a short, deterministic key part, so a row keeps its identity when newer listens arrive. */
+function shortHash(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(36);
+}
+
 export interface NormalizedListens {
   listens: Listen[];
   spotifyOnly: boolean;
@@ -114,7 +124,7 @@ export function normalizeListens(payload: unknown): NormalizedListens {
     const eventKey = `${raw.listened_at}|${raw.recording_msid ?? ""}|${raw.track_metadata.track_name}|${raw.track_metadata.artist_name}`;
     if (seen.has(eventKey)) continue;
     seen.add(eventKey);
-    const track = toTrack(raw, `${raw.listened_at}-${seen.size}`);
+    const track = toTrack(raw, `${raw.listened_at}-${shortHash(eventKey)}`);
     if (!track) continue;
     entries.push({ listen: { ...track, listenedAt: (raw.listened_at as number) * 1000 }, spotify: isSpotifyOrigin(raw) });
   }

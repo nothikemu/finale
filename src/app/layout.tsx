@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: site.title,
     description: site.description,
     applicationName: site.title,
-    authors: [{ name: site.title, url: site.socials[1]?.href }],
+    authors: [{ name: site.title, url: site.socials.find((link) => link.id === "github")?.href }],
     alternates: origin ? { canonical: "/" } : undefined,
     openGraph: { type: "website", siteName: site.title, title: site.title, description: site.description, url: "/" },
     twitter: { card: "summary_large_image", title: site.title, description: site.description },

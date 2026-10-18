@@ -90,3 +90,75 @@ time {
     scroll-behavior: auto !important;
   }
 }
+
+/* ---- skip link ----------------------------------------------------------- */
+
+/* The listening list has dozens of tab stops; this jumps past it. Hidden until it takes focus. */
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: var(--page-margin);
+  z-index: 60;
+  padding: 6px 12px;
+  color: var(--text-primary);
+  background: #000;
+  border: 1px solid var(--quartz);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+/* ---- users who ask for more contrast or their own colours -------------------- */
+
+@media (prefers-contrast: more) {
+  :root {
+    --border: rgba(244, 241, 236, 0.5);
+    --border-active: rgba(244, 241, 236, 0.75);
+    --border-faint: rgba(244, 241, 236, 0.3);
+    --text-secondary: #d4d1cc;
+    --text-muted: #aaa7a2;
+  }
+}
+
+/* The calendar's intensity is carried by colour alone, which forced-colors mode replaces. Keep it as opacity of one colour. */
+@media (forced-colors: active) {
+  .calendar__svg rect,
+  .legend-cell,
+  .status-marker--online,
+  .marker {
+    forced-color-adjust: none;
+  }
+
+  .calendar__svg rect,
+  .legend-cell {
+    fill: CanvasText;
+    background-color: CanvasText;
+  }
+
+  .status-marker--online,
+  .marker {
+    background-color: CanvasText;
+  }
+
+  .level-0 {
+    opacity: 0.15;
+  }
+
+  .level-1 {
+    opacity: 0.35;
+  }
+
+  .level-2 {
+    opacity: 0.55;
+  }
+
+  .level-3 {
+    opacity: 0.8;
+  }
+
+  .level-4 {
+    opacity: 1;
+  }
+}

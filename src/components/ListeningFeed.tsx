@@ -8,7 +8,7 @@ import { formatExactTimestamp, formatListenTime } from "@/lib/format";
 import { useNow } from "@/lib/use-now";
 import { Artwork } from "./Artwork";
 import { StateMessage } from "./Panel";
-import { ExternalIcon } from "./icons";
+import { ExternalLinkLabel } from "./ExternalLinkLabel";
 
 const REFRESH_MS = 30_000;
 const RETRY_MS = 60_000;
@@ -110,7 +110,7 @@ export function ListeningFeed({ initial, serverNow, hints }: Props) {
           <TrackRow track={nowPlaying} />
         </div>
       ) : null}
-      <ol className="tracks">
+      <ol className="tracks" role="list">
         {listens.map((listen) => (
           <TrackRow key={listen.id} track={listen} time={{ listen, now: clock, zone }} />
         ))}
@@ -129,11 +129,7 @@ function TrackRow({ track, time }: { track: Track; time?: { listen: Listen; now:
         <span className="track__title">
           {track.spotifyUrl ? (
             <a href={track.spotifyUrl} target="_blank" rel="noopener noreferrer">
-              {track.title}
-              <span className="track__external" aria-hidden="true">
-                <ExternalIcon size={10} />
-              </span>
-              <span className="visually-hidden"> (opens spotify in a new tab)</span>
+              <ExternalLinkLabel text={track.title} hiddenNote="(opens spotify in a new tab)" />
             </a>
           ) : (
             track.title

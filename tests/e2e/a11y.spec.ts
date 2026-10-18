@@ -43,8 +43,9 @@ test("scroll regions have names, can take focus, and show a square focus outline
     await expect(region).toHaveAttribute("aria-label", /.+/);
     await expect(region).toHaveAttribute("tabindex", "0");
     await region.focus();
-    const outline = await region.evaluate((el) => ({ style: getComputedStyle(el).outlineStyle, width: getComputedStyle(el).outlineWidth }));
-    expect(outline).toEqual({ style: "solid", width: "1px" });
+    // The bottom of the region fades out, which would fade a ring drawn on it: the ring is drawn on the whole panel.
+    const ring = await panel(page, id).evaluate((el) => ({ style: getComputedStyle(el).outlineStyle, width: getComputedStyle(el).outlineWidth, color: getComputedStyle(el).outlineColor }));
+    expect(ring).toEqual({ style: "solid", width: "1px", color: "rgb(244, 241, 236)" });
   }
 });
 

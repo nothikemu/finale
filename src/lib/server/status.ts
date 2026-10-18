@@ -37,7 +37,6 @@ const NOTES: Record<Setting, string> = {
 const WHY_VISIBLE: Record<DiagnosticsReason, string> = {
   SHOW_DIAGNOSTICS: "SHOW_DIAGNOSTICS is on",
   "development build": "this is a development build",
-  "local viewer": "you are viewing it from the machine running the server (visitors get a 404)",
 };
 
 /** What this server's folder holds in the way of environment files. Names and sizes only, never contents. */
@@ -154,7 +153,8 @@ export function formatStatus(input: StatusInput): string {
   const out: string[] = [];
   out.push("nothikemu dashboard: status");
   out.push(`owner diagnostics, shown because ${WHY_VISIBLE[input.visibleBecause]}.`);
-  out.push("Set SHOW_DIAGNOSTICS=0 to hide it everywhere once everything works. Credentials never appear here.");
+  out.push("Anyone who knows this address can read this page while it is on: remove SHOW_DIAGNOSTICS (or set 0) once everything works.");
+  out.push("Credentials never appear here.");
   out.push("");
   out.push("runtime");
   out.push(`  node      ${input.node}`);
@@ -238,7 +238,8 @@ export async function buildStatusReport(visibleBecause: DiagnosticsReason): Prom
   return formatStatus({
     visibleBecause,
     build: describeBuild(folder),
-    folder,
+    // Enough to tell two copies apart; the full path of the server is not for a page anyone can open.
+    folder: `.../${folder.split(/[\\/]/).filter(Boolean).slice(-2).join("/")}`,
     envFiles: describeEnvFiles(folder),
     discordUserId: serverEnv.discordUserId ?? null,
     listenbrainzNames: splitUsernames(serverEnv.listenbrainzUsername).valid,

@@ -24,7 +24,7 @@ export const URLS = {
   serverLanyard: "http://localhost:3107",
   /** nothing configured, owner diagnostics on */
   unconfiguredDiagnostics: "http://localhost:3108",
-  /** nothing configured, SHOW_DIAGNOSTICS unset: hints appear only for a viewer on localhost */
+  /** nothing configured, SHOW_DIAGNOSTICS unset: owner information stays locked whatever the request claims */
   localViewer: "http://localhost:3109",
   /** ListenBrainz configured with a list of guessed usernames, one of them real; its listens are mixed */
   guessedUsernames: "http://localhost:3110",

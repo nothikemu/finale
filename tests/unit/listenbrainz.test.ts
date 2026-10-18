@@ -116,6 +116,22 @@ describe("normalizeListens null handling", () => {
   });
 });
 
+describe("listen ids", () => {
+  const at = (ts: number, name: string) => ({ ...listen({ track_name: name }, null), listened_at: ts, recording_msid: name });
+
+  it("keep their identity when a newer listen arrives, so rows are not remounted", () => {
+    const before = normalizeListens({ payload: { listens: [at(1_700_000_200, "B"), at(1_700_000_100, "A")] } }).listens;
+    const after = normalizeListens({ payload: { listens: [at(1_700_000_300, "C"), at(1_700_000_200, "B"), at(1_700_000_100, "A")] } }).listens;
+    for (const old of before) expect(after.find((l) => l.title === old.title)?.id).toBe(old.id);
+    expect(new Set(after.map((l) => l.id)).size).toBe(3);
+  });
+
+  it("differ for different listens, even in the same second", () => {
+    const { listens } = normalizeListens({ payload: { listens: [at(1_700_000_100, "A"), at(1_700_000_100, "B")] } });
+    expect(new Set(listens.map((l) => l.id)).size).toBe(2);
+  });
+});
+
 describe("Spotify narrowing", () => {
   it("reports how many listens it left out so the panel can say so", () => {
     const mixed = normalizeListens({

@@ -185,3 +185,23 @@ describe("repositories", () => {
     expect(await loadProjects()).toMatchObject({ status: "unavailable", reason: "rate-limited" });
   });
 });
+
+describe("an answer that is not a repository list", () => {
+  it("is a failure, not 'no public repositories'", async () => {
+    mockFetch(() => json({ message: "something else entirely" }));
+    expect(await loadProjects()).toMatchObject({ status: "unavailable", reason: "invalid-response" });
+  });
+
+  it("is a failure when every record is unreadable, but not when only some are", async () => {
+    mockFetch(() => json([{ nonsense: true }, { also: "nonsense" }]));
+    expect(await loadProjects()).toMatchObject({ status: "unavailable", reason: "invalid-response" });
+    clearCache();
+    mockFetch(() => json([repo(1), { nonsense: true }]));
+    expect(await loadProjects()).toMatchObject({ status: "ok", data: [{ name: "repo-1" }] });
+  });
+
+  it("still treats a genuinely empty account as empty", async () => {
+    mockFetch(() => json([]));
+    expect(await loadProjects()).toMatchObject({ status: "ok", data: [] });
+  });
+});

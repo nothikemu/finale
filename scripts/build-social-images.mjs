@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Renders the link-preview card (Open Graph / Twitter) and the Apple touch icon from the site's own
+ * Renders the link-preview card (Open Graph / Twitter), the Apple touch icon and favicon.ico from the site's own
  * fonts and colours, so they match the page exactly. Output goes to src/app, where Next.js picks the
  * files up by name. Development tooling only: it needs the Chromium that Playwright installs
  * (`npx playwright install chromium`). Re-run after changing the title or colours.
@@ -40,10 +40,13 @@ h1 { font-weight: 500; font-size: 148px; line-height: 1; letter-spacing: -.02em;
 </style><body><div class="panel"><div class="label">personal dashboard</div><h1>${TITLE}</h1>
 <div class="lines">${LINES.map((line) => `<span>${line}</span>`).join("")}</div></div></body>`;
 
+const ICON_SVG = (size) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="${size}" height="${size}"><rect width="32" height="32" fill="#000"/><rect x="7" y="7" width="18" height="18" fill="none" stroke="#f4f1ec" stroke-width="2"/><rect x="13" y="13" width="6" height="6" fill="#f4f1ec"/></svg>`;
+
 const icon = `<!doctype html><meta charset="utf-8"><style>
 html, body { margin: 0; width: 180px; height: 180px; background: #000; }
 svg { display: block; }
-</style><body><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="180" height="180"><rect width="32" height="32" fill="#000"/><rect x="7" y="7" width="18" height="18" fill="none" stroke="#f4f1ec" stroke-width="2"/><rect x="13" y="13" width="6" height="6" fill="#f4f1ec"/></svg></body>`;
+</style><body>${ICON_SVG(180)}</body>`;
 
 const dir = mkdtempSync(join(tmpdir(), "social-"));
 const browser = await chromium.launch();
@@ -61,6 +64,33 @@ await render(card, { width: 1200, height: 630 }, "opengraph-image.png");
 copyFileSync(join(root, "src/app/opengraph-image.png"), join(root, "src/app/twitter-image.png"));
 console.log("wrote src/app/twitter-image.png");
 await render(icon, { width: 180, height: 180 }, "apple-icon.png");
+
+// favicon.ico: browsers and crawlers still ask for /favicon.ico. An .ico may carry a PNG image, so this is a
+// 48px render wrapped in the 22-byte ICO header and directory entry. Next.js decodes .ico files strictly and
+// requires the PNG to be RGBA, which a canvas always produces (a screenshot of an opaque image is plain RGB).
+const small = await browser.newPage({ viewport: { width: 48, height: 48 } });
+const dataUrl = await small.evaluate(async (svg) => {
+  const image = new Image();
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  await image.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 48;
+  canvas.getContext("2d").drawImage(image, 0, 0, 48, 48);
+  return canvas.toDataURL("image/png");
+}, ICON_SVG(48));
+await small.close();
+const png = Buffer.from(dataUrl.split(",")[1], "base64");
+const header = Buffer.alloc(22);
+header.writeUInt16LE(1, 2); // type: icon
+header.writeUInt16LE(1, 4); // one image
+header.writeUInt8(48, 6); // width
+header.writeUInt8(48, 7); // height
+header.writeUInt16LE(1, 10); // planes
+header.writeUInt16LE(32, 12); // bits per pixel
+header.writeUInt32LE(png.length, 14); // image size
+header.writeUInt32LE(22, 18); // image offset
+writeFileSync(join(root, "src/app/favicon.ico"), Buffer.concat([header, png]));
+console.log("wrote src/app/favicon.ico");
 await browser.close();
 writeFileSync(join(root, "src/app/opengraph-image.alt.txt"), `${TITLE}: ${LINES.join(", ")}\n`);
 writeFileSync(join(root, "src/app/twitter-image.alt.txt"), `${TITLE}: ${LINES.join(", ")}\n`);

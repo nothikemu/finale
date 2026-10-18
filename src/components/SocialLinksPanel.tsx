@@ -5,7 +5,7 @@ import { ExternalIcon, SocialIcon } from "./icons";
 export function SocialLinksPanel() {
   return (
     <Panel id="socials" index={1} title="socials">
-      <ul className="links">
+      <ul className="links" role="list">
         {site.socials.map((social) => (
           <li key={social.id}>
             <a className="link-row" href={social.href} target="_blank" rel="noopener noreferrer me">

@@ -4,7 +4,7 @@ import { FAKE_SECRETS, TEST_DISCORD_ID } from "./tests/e2e/constants";
 
 /**
  * End-to-end acceptance tests run against `next start` (a production build) on
- * three ports so every state of the dashboard can be exercised without network
+ * eleven ports so every state of the dashboard can be exercised without network
  * access or real credentials:
  *
  *   3101  healthy upstreams (fixtures) and every secret configured
@@ -15,7 +15,7 @@ import { FAKE_SECRETS, TEST_DISCORD_ID } from "./tests/e2e/constants";
  *   3106  no credentials at all, but GitHub's public pages work
  *   3107  healthy, and the server (not the browser) can reach Lanyard
  *   3108  nothing configured, owner diagnostics on: what an owner sees when their config never arrives
- *   3109  nothing configured, SHOW_DIAGNOSTICS left unset: the owner is recognised by viewing from localhost
+ *   3109  nothing configured, SHOW_DIAGNOSTICS left unset: nothing a client sends may unlock owner information
  *   3110  ListenBrainz configured with only a list of guessed usernames, one of them real
  *   3111  ListenBrainz unreachable (network), owner diagnostics on: the same cause must show in the page, the API and /status
  *
@@ -35,7 +35,8 @@ function server(port: number, env: Record<string, string>) {
   return {
     command: `npx next start -p ${port}`,
     url: `http://localhost:${port}`,
-    reuseExistingServer: !process.env.CI,
+    // Opt in (PW_REUSE=1) to reuse servers you started yourself; by default stale ones are never trusted.
+    reuseExistingServer: process.env.PW_REUSE === "1",
     timeout: 60_000,
     env: { ...blank, NODE_OPTIONS: preload, ...env },
   };

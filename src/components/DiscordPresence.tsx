@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useSyncExternalStore } from "react";
-import { getLanyardHandle, INITIAL_LANYARD_STATE } from "@/data/discord/lanyard-store";
+import { getLanyardHandle, INITIAL_LANYARD_STATE, type Connection } from "@/data/discord/lanyard-store";
 import { resolveBanner, resolveBio } from "@/data/discord/profile";
 import type { ActivityView, DiscordPresence as Presence, DiscordStatus, SpotifyActivity } from "@/data/discord/types";
 import { hint } from "@/lib/dev-hint";
 import { formatClock } from "@/lib/format";
 import { useNow } from "@/lib/use-now";
 import { Artwork } from "./Artwork";
-import { ExternalIcon } from "./icons";
+import { ExternalLinkLabel } from "./ExternalLinkLabel";
 
 interface Props {
   userId: string;
@@ -83,7 +83,7 @@ export function DiscordPresence({ userId, bannerUrl, fallbackBio, kv, hints }: P
           <Identity presence={presence} />
           <div className="panel__body scroll discord__body" tabIndex={0} role="region" aria-label="discord profile and activity, scrollable">
             {presence.badges.length > 0 ? (
-              <ul className="badges" aria-label="badges">
+              <ul className="badges" aria-label="badges" role="list">
                 {presence.badges.map((badge) => (
                   <li className="tag" key={badge.key}>
                     {badge.label}
@@ -100,13 +100,19 @@ export function DiscordPresence({ userId, bannerUrl, fallbackBio, kv, hints }: P
   );
 }
 
-function ConnectionTag({ connection, hasPresence }: { connection: string; hasPresence: boolean }) {
+const CONNECTION_LABEL: Record<Connection, string> = {
+  open: "live",
+  connecting: "connecting",
+  reconnecting: "stale · reconnecting",
+  paused: "paused",
+};
+
+function ConnectionTag({ connection, hasPresence }: { connection: Connection; hasPresence: boolean }) {
   if (!hasPresence) return null;
-  const live = connection === "open";
   return (
-    <span className={`discord__connection${live ? "" : " is-stale"}`}>
+    <span className={`discord__connection${connection === "open" ? "" : " is-stale"}`}>
       <span className="marker" aria-hidden="true" />
-      {live ? "live" : connection === "paused" ? "paused" : "stale · reconnecting"}
+      {CONNECTION_LABEL[connection]}
     </span>
   );
 }
@@ -204,6 +210,19 @@ function elapsed(start: number | null, end: number | null, now: number | null) {
   return { label: `${formatClock(now - start)} elapsed`, ratio: null };
 }
 
+/**
+ * The clock only starts after hydration, one frame after the card first renders. This holds the progress line's
+ * space in that frame, so the cards below do not jump (it is the same height as the real line, and hidden).
+ */
+function PendingTime({ bar }: { bar: boolean }) {
+  return (
+    <p className="activity__time" aria-hidden="true" style={{ visibility: "hidden" }}>
+      0:00
+      {bar ? <span className="progress" /> : null}
+    </p>
+  );
+}
+
 function SpotifyCard({ spotify, now }: { spotify: SpotifyActivity; now: number | null }) {
   const progress = elapsed(spotify.start, spotify.end, now);
   return (
@@ -214,11 +233,7 @@ function SpotifyCard({ spotify, now }: { spotify: SpotifyActivity; now: number |
         <p className="activity__title">
           {spotify.trackUrl ? (
             <a href={spotify.trackUrl} target="_blank" rel="noopener noreferrer">
-              {spotify.track}
-              <span className="track__external" aria-hidden="true">
-                <ExternalIcon size={10} />
-              </span>
-              <span className="visually-hidden"> (opens spotify in a new tab)</span>
+              <ExternalLinkLabel text={spotify.track} hiddenNote="(opens spotify in a new tab)" />
             </a>
           ) : (
             spotify.track
@@ -236,6 +251,8 @@ function SpotifyCard({ spotify, now }: { spotify: SpotifyActivity; now: number |
               </span>
             ) : null}
           </p>
+        ) : spotify.start !== null ? (
+          <PendingTime bar={spotify.end !== null} />
         ) : null}
       </div>
     </article>
@@ -256,6 +273,8 @@ function ActivityCard({ activity, now }: { activity: ActivityView; now: number |
           <p className="activity__time" aria-hidden="true">
             {progress.label}
           </p>
+        ) : activity.start !== null ? (
+          <PendingTime bar={false} />
         ) : null}
       </div>
     </article>

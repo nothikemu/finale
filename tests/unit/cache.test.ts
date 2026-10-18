@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cached, clearCache, toLoaded } from "@/lib/server/cache";
+import { cached, clearCache, DEADLINE_MS, toLoaded } from "@/lib/server/cache";
 import { MissingConfigError } from "@/lib/server/env";
 import { parseRetryAfter, UpstreamError } from "@/lib/server/http";
 
@@ -141,5 +141,35 @@ describe("errors that come from another copy of the class", () => {
   it("does not mistake an ordinary error for an upstream error", async () => {
     const result = await toLoaded({ key: "k-plain", ttlMs: 1000, load: () => Promise.reject(new Error("boom")) });
     expect(result).toMatchObject({ status: "unavailable", reason: "upstream", detail: "k-plain: upstream" });
+  });
+});
+
+describe("how long a visitor waits", () => {
+  it("answers 'unavailable' after the deadline instead of waiting for a hung upstream, and lets the refresh finish", async () => {
+    let finish: (value: string) => void = () => undefined;
+    const slow = new Promise<string>((resolve) => (finish = resolve));
+    const pending = toLoaded({ key: "k-hung", ttlMs: 1000, load: () => slow });
+    await vi.advanceTimersByTimeAsync(DEADLINE_MS + 1);
+    await expect(pending).resolves.toMatchObject({ status: "unavailable", reason: "network", detail: "k-hung: timeout" });
+
+    // The refresh was not cancelled: when it lands, the next visitor gets the data.
+    finish("late but good");
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(toLoaded({ key: "k-hung", ttlMs: 1000, load: () => Promise.reject(new Error("must not run")) })).resolves.toMatchObject({ status: "ok", data: "late but good" });
+  });
+
+  it("does not delay a healthy answer or leave a timer behind", async () => {
+    await expect(toLoaded({ key: "k-fast", ttlMs: 1000, load: () => Promise.resolve("fast") })).resolves.toMatchObject({ status: "ok", data: "fast" });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("logging an outage", () => {
+  it("writes one line per failed refresh, not one per visitor", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const load = () => Promise.reject(new UpstreamError("network", "svc"));
+    for (let visitor = 0; visitor < 25; visitor += 1) await toLoaded({ key: "k-log", ttlMs: 1000, load });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toBe("[upstream] svc: network");
   });
 });

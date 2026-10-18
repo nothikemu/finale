@@ -127,6 +127,8 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
   let fallbackInflight = false;
   let fallbackTried = false;
   let serverIssue: string | null = null;
+  /** Counts start() calls, so a request from a stopped run cannot write into the next one. */
+  let run = 0;
 
   function set(patch: Partial<LanyardState>) {
     state = { ...state, ...patch };
@@ -135,7 +137,8 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
 
   function acceptPresence(raw: unknown) {
     const presence = parseLanyardPresence(raw, { kv: options.kv });
-    if (!presence) return false;
+    // The socket is a shared service: ignore anyone else's presence, however it got here.
+    if (!presence || presence.user.id !== userId) return false;
     set({ presence, updatedAt: deps.now(), failed: false, notTracked: false, detail: null });
     return true;
   }
@@ -254,6 +257,7 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
       controller.abort();
     }, REST_TIMEOUT_MS);
     restIssue = null;
+    const mine = run;
     try {
       const response = await deps.fetch(lanyardRestUrl(userId), { signal: controller.signal, cache: "no-store" });
       const body = asRecord(await response.json().catch(() => null));
@@ -277,6 +281,7 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
       }
     } finally {
       if (restController === controller) clearTimeout(restTimer);
+      if (mine !== run) return;
       restDone = true;
       if (running && nothingToShow()) {
         // With the socket still connecting, wait for it; but a failed REST call is reason enough to ask the server.
@@ -294,6 +299,7 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
     fallbackController?.abort();
     const controller = new AbortController();
     fallbackController = controller;
+    const mine = run;
     const timer = setTimeout(() => controller.abort(), REST_TIMEOUT_MS);
     try {
       const response = await deps.fetch(url, { signal: controller.signal, cache: "no-store" });
@@ -319,9 +325,11 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
       if (running && fallbackController === controller) serverIssue = "the dashboard's own server did not answer";
     } finally {
       clearTimeout(timer);
-      fallbackInflight = false;
-      fallbackTried = true;
-      giveUp();
+      if (mine === run) {
+        fallbackInflight = false;
+        fallbackTried = true;
+        giveUp();
+      }
     }
   }
 
@@ -358,9 +366,11 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
     start() {
       if (running) return;
       running = true;
+      run += 1;
       restDone = false;
       restIssue = serverIssue = null;
       fallbackTried = false;
+      fallbackInflight = false;
       attempt = 0;
       state = INITIAL_LANYARD_STATE;
       removeVisibility = deps.onVisibilityChange(onVisibility);
@@ -380,6 +390,7 @@ export function createLanyardStore(userId: string, options: LanyardOptions = {})
       running = false;
       restController?.abort();
       fallbackController?.abort();
+      fallbackInflight = false;
       if (fallbackPoll !== undefined) clearInterval(fallbackPoll);
       fallbackPoll = undefined;
       for (const timer of [reconnectTimer, settleTimer, hiddenTimer, restTimer]) if (timer !== undefined) clearTimeout(timer);

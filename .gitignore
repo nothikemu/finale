@@ -20,3 +20,6 @@ playwright-report/
 .DS_Store
 *.log
 *.tsbuildinfo
+
+# vercel
+.vercel

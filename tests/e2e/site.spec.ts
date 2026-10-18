@@ -26,6 +26,16 @@ test.describe("link previews and metadata", () => {
     expect(html).toContain('rel="canonical" href="https://dashboard.example.com"');
   });
 
+  test("ignore a forwarded host or scheme that is not well formed, since the client chooses them", async ({ request }) => {
+    const origin = async (headers: Record<string, string>) => meta(await (await request.get(`${URLS.healthy}/`, { headers })).text(), "og:image") ?? "";
+    // None of these may reach a link preview, which other people's apps will fetch and display.
+    expect(await origin({ "x-forwarded-host": "evil.example/path?x=1" })).toMatch(/^http:\/\/localhost:3101\//);
+    expect(await origin({ "x-forwarded-host": "a b.example" })).toMatch(/^http:\/\/localhost:3101\//);
+    expect(await origin({ "x-forwarded-host": "user:pass@evil.example" })).toMatch(/^http:\/\/localhost:3101\//);
+    expect(await origin({ "x-forwarded-host": "ok.example", "x-forwarded-proto": "javascript" })).toMatch(/^https:\/\/ok\.example\//);
+    expect(await origin({ "x-forwarded-host": "ok.example", "x-forwarded-proto": "http" })).toMatch(/^http:\/\/ok\.example\//);
+  });
+
   test("the preview card, Twitter card and Apple icon are real images", async ({ request }) => {
     for (const [path, size] of [
       ["/opengraph-image.png", 1200],
