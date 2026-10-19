@@ -70,6 +70,14 @@ export const site = {
    * everywhere. Users who prefer reduced transparency always get solid panels.
    */
   glass: "auto" as "auto" | "opaque",
+
+  /**
+   * Stops casual copying: text cannot be selected, and right-click, copy, cut and dragging are
+   * blocked. It is a deterrent only: view-source, developer tools and screenshots still work, and
+   * it also stops visitors who want to select text for a translator or a reading aid. Set to
+   * false to allow normal selecting and copying.
+   */
+  protectContent: true,
 };
 
 /** Server-side cache lifetimes in milliseconds. */

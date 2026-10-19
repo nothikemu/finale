@@ -6,7 +6,7 @@ import { Panel, SkeletonRows } from "./Panel";
 
 export function RecentListeningPanel() {
   return (
-    <Panel id="listening" index={2} title="recently played" aside="via listenbrainz" scroll="recently played tracks, scrollable">
+    <Panel id="listening" index={2} title="recently played" scroll="recently played tracks, scrollable">
       <Suspense fallback={<SkeletonRows count={7} />}>
         <ListeningContent />
       </Suspense>

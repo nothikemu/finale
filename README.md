@@ -1,6 +1,6 @@
 # nothikemu: personal dashboard
 
-A compact personal dashboard: live Discord presence, social links, recent listening (via ListenBrainz), a short introduction, a full GitHub contribution calendar, and a scrollable list of every public GitHub repository.
+A compact personal dashboard: live Discord presence, social links, recent listening (from ListenBrainz), a short introduction, a full GitHub contribution calendar, and a scrollable list of every public GitHub repository.
 
 Precision-cut smoked glass over an OLED-black page: true `#000` background, quartz-white (`#f4f1ec`) accents, JetBrainsMono Nerd Font Mono everywhere, square corners only.
 
@@ -73,7 +73,7 @@ ListenBrainz is not a direct Spotify-history endpoint. Your Spotify listening mu
 
 **A token settles it.** If `LISTENBRAINZ_TOKEN` (from <https://listenbrainz.org/settings/>) is also set and valid, ListenBrainz itself says whose account it is, and that wins over any guess. The server asks once (cached 6 h) via `GET /1/validate-token`, and the token never reaches the browser. If the token is missing, rejected or cannot be checked, the username (or candidate list) is used, so resetting a token does not take the panel down.
 
-The panel fetches `GET /1/user/{name}/listens?count=50` (cached 60 s) and optionally `/playing-now` (cached 20 s; the client refreshes every 30 s while the page is visible). If ListenBrainz marks listens with Spotify-origin metadata, only those are shown; otherwise all listens are shown under the neutral "recently played / via listenbrainz" labels and no listen is claimed to be Spotify.
+The panel fetches `GET /1/user/{name}/listens?count=50` (cached 60 s) and optionally `/playing-now` (cached 20 s; the client refreshes every 30 s while the page is visible). If ListenBrainz marks listens with Spotify-origin metadata, only those are shown; otherwise all listens are shown under the neutral "recently played" heading and no listen is claimed to be Spotify.
 
 > **Treat any token that was ever pasted into a chat, prompt, issue or commit as compromised.** Reset it at <https://listenbrainz.org/settings/> and enter the new one only in your secret manager, or switch to `LISTENBRAINZ_USERNAME` and stop using a token at all.
 

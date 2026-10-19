@@ -60,6 +60,26 @@ time {
   color: var(--background);
 }
 
+/*
+ * Copy protection (site.protectContent): nothing can be selected, touch devices get no long-press
+ * menu, and nothing can be dragged out. The matching events are blocked in ContentGuard.tsx. It
+ * deters casual copying only. Form fields, if one is ever added, keep working.
+ */
+:root[data-protect] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+:root[data-protect] :is(a, img, svg) {
+  -webkit-user-drag: none;
+}
+
+:root[data-protect] :is(input, textarea, select, [contenteditable]:not([contenteditable="false"])) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* Square-edged focus treatment shared by everything focusable. */
 :focus-visible {
   outline: 1px solid var(--quartz);

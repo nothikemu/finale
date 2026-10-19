@@ -13,7 +13,9 @@ test.beforeEach(async ({ page }) => {
 test("panel headings", async ({ page }) => {
   const headings = await page.locator(".dashboard h2").allTextContents();
   expect(headings).toEqual(["discord", "socials", "recently played", "about", "github activity", "projects"]);
-  await expect(panel(page, "listening").locator(".panel__aside")).toHaveText("via listenbrainz");
+  // The listening panel carries no source label beside its heading.
+  await expect(panel(page, "listening").locator(".panel__aside")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(/via listenbrainz/i);
   await expect(page.locator("h1")).toHaveText("nothikemu personal dashboard");
 });
 

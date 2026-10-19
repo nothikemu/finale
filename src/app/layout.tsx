@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { preconnect, preload } from "react-dom";
+import { ContentGuard } from "@/components/ContentGuard";
 import { site } from "@/config/site";
 import { siteOrigin } from "@/lib/server/origin";
 import "@/styles/tokens.css";
@@ -41,8 +42,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // The Discord panel talks to Lanyard straight from the browser; open that connection early.
   preconnect("https://api.lanyard.rest", { crossOrigin: "anonymous" });
   return (
-    <html lang="en" data-glass={site.glass}>
-      <body>{children}</body>
+    <html lang="en" data-glass={site.glass} data-protect={site.protectContent ? "on" : undefined}>
+      <body>
+        {children}
+        <ContentGuard />
+      </body>
     </html>
   );
 }
