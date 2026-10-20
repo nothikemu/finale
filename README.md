@@ -232,7 +232,7 @@ Results at release (Chromium via Playwright, Node 22):
 | Check | Result |
 | --- | --- |
 | Unit tests | 188 passed |
-| End-to-end tests | 207 passed, consecutive runs on a fresh build (layout, content, interaction, states, security, accessibility, cross-state consistency, resilience, doctor) |
+| End-to-end tests | 221 passed on a fresh build, once for each weekday (`FIXTURE_TODAY_OFFSET_DAYS=0..6` shifts the calendar's "today"): layout, content, interaction, states, security, accessibility, cross-state consistency, resilience, doctor, copy protection |
 | ESLint, `tsc --noEmit`, production `next build` | clean |
 | `npm audit --omit=dev` | 0 vulnerabilities (dev-only advisories exist in test tooling) |
 | axe-core (WCAG 2.0-2.2 A/AA + best practices), 1440 px and 390 px | 0 violations |
