@@ -19,18 +19,21 @@
  * (FIXTURE_MODE=down and ratelimit still win, as for every other upstream.)
  *
  * LISTENBRAINZ_FIXTURE=blocked  ListenBrainz requests fail like a blocked network (a specific, non-generic cause)
+ * FIXTURE_TODAY_OFFSET_DAYS=N   the calendar ends N days from today, to run the suite as if it were another weekday
  */
 
 const realFetch = globalThis.fetch;
 const mode = process.env.FIXTURE_MODE ?? "ok";
 const DAY = 86_400_000;
+// Moves the calendar's "today" by this many days, so a suite can be run as if it were any weekday.
+const todayOffsetDays = Number(process.env.FIXTURE_TODAY_OFFSET_DAYS) || 0;
 
 // Small deterministic PRNG so screenshots and assertions are stable.
 let seed = 42;
 const random = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
 
 function calendarDays() {
-  const today = new Date();
+  const today = new Date(Date.now() + todayOffsetDays * DAY);
   today.setUTCHours(0, 0, 0, 0);
   const start = new Date(today.getTime() - 364 * DAY);
   start.setTime(start.getTime() - start.getUTCDay() * DAY); // back to Sunday

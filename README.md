@@ -176,6 +176,7 @@ Everything visual comes from `src/styles/tokens.css`.
 
 - **Material:** 1px border, faint inset top highlight, faint dark shadow, **one** 12-16px backdrop blur per panel (never nested), and a few extremely low-opacity static quartz light fields behind the page so the glass has something to refract. No WebGL, no animated glass.
 - **Opaque fallback / reduced transparency:** panels are opaque where `backdrop-filter` is unsupported, when the visitor sets `prefers-reduced-transparency` or `prefers-contrast: more`, or if you set `glass: "opaque"` in `src/config/site.ts` (renders `<html data-glass="opaque">`). CSS override: `:root[data-glass="opaque"] .panel { … }` in `src/styles/panel.css`.
+- **Copy protection:** `protectContent: true` in `src/config/site.ts` (the default) renders `<html data-protect>`: text cannot be selected, right-click, copy, cut and dragging are blocked, long-press menus are off on touch devices, and printing or "save as PDF" gives a blank page (`src/styles/base.css`, `src/components/ContentGuard.tsx`). It is a **deterrent only**: view-source, developer tools, screenshots and saving the page still work, and it also stops visitors who select text for a translator or a reading aid. `/status` and `/api/*` are plain responses and are not affected. Set it to `false` to allow normal selecting, copying and printing.
 - **Motion:** one 280 ms entrance fade (6 px, 30 ms stagger), 180 ms link transitions, and three localised word effects. `prefers-reduced-motion` removes all animation; the word effects keep a polished static state (also what touch devices see at rest).
 - **Font:** JetBrainsMono Nerd Font Mono (Nerd Fonts v3.4.0), self-hosted as WOFF2 in `public/fonts/` with `font-display: swap` and preload. It is the real patched font, subset to Latin plus common symbols and Powerline glyphs, not ordinary JetBrains Mono. Rebuild or change the subset with `npm run fonts` (needs `pip install fonttools brotli`; the script verifies the family name). License: `public/fonts/OFL.txt`.
 - **Headings** are written lowercase and rendered uppercase with 0.08em tracking via CSS.
@@ -191,7 +192,8 @@ src/
   app/                 layout, page, 404 and error pages, robots, manifest, social images and icons,
                        API routes (/api/listening, /api/presence, /api/github/projects, /api/github/contributions),
                        /status (owner report)
-  components/          Dashboard + one component per panel (DiscordPresence, SocialLinks, RecentListening, About, ContributionCalendar, GitHubProjects)
+  components/          Dashboard + one component per panel (DiscordPresence, SocialLinks, RecentListening, About, ContributionCalendar, GitHubProjects),
+                       ContentGuard (copy protection)
   config/site.ts       owner-editable copy, links, cache lifetimes
   config/identity.ts   public identifiers (Discord ID, ListenBrainz name) that travel with the project
   data/                adapters, kept separate from visuals
@@ -203,7 +205,7 @@ src/
   styles/              tokens, base, layout, panel shell, per-panel styles, word effects
 tests/unit             Vitest: adapters, validation, cache, config sources, Lanyard store, status report
 tests/e2e              Playwright against production builds on eleven ports: layout, content, interaction,
-                       states, accessibility, resilience, doctor, status, site (previews, 404, headers)
+                       states, accessibility, resilience, doctor, status, site (previews, 404, headers), protect (copy protection)
 scripts/build-fonts.py          reproducible font build
 scripts/build-social-images.mjs preview card, Apple icon and favicon, rendered from the site's own fonts
 scripts/doctor.mjs              `npm run doctor`: live connectivity and configuration report

@@ -62,8 +62,8 @@ time {
 
 /*
  * Copy protection (site.protectContent): nothing can be selected, touch devices get no long-press
- * menu, and nothing can be dragged out. The matching events are blocked in ContentGuard.tsx. It
- * deters casual copying only. Form fields, if one is ever added, keep working.
+ * menu, nothing can be dragged out, and printing gives a blank page. The matching events are blocked
+ * in ContentGuard.tsx. It deters casual copying only. Form fields, if one is ever added, keep working.
  */
 :root[data-protect] {
   -webkit-user-select: none;
@@ -73,6 +73,18 @@ time {
 
 :root[data-protect] :is(a, img, svg) {
   -webkit-user-drag: none;
+}
+
+/* Images are decorative: a right-click lands on their container, so even before ContentGuard has loaded no "save image" menu opens. */
+:root[data-protect] img {
+  pointer-events: none;
+}
+
+/* "Save as PDF" would otherwise hand out a PDF with a text layer. */
+@media print {
+  :root[data-protect] body {
+    display: none;
+  }
 }
 
 :root[data-protect] :is(input, textarea, select, [contenteditable]:not([contenteditable="false"])) {

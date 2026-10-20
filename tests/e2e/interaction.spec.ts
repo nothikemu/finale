@@ -38,13 +38,23 @@ test.describe("calendar interaction", () => {
     // moving left one week keeps the weekday
     expect(previousWeek!.split(" on ")[1]!.slice(0, 3)).toBe(start!.split(" on ")[1]!.slice(0, 3));
 
-    // the latest day is a Sunday (top row), so moving up is a no-op and moving down is the next weekday
+    // Rows run Sunday (0) to Saturday (6) and the latest day is today, so the row depends on the weekday the suite runs on.
+    const focused = () => page.evaluate(() => ({ label: document.activeElement?.getAttribute("aria-label") ?? "", row: Number(document.activeElement?.getAttribute("data-row")) }));
+    const { row } = await focused();
     await page.keyboard.press("ArrowUp");
-    expect(await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toBe(previousWeek);
+    const up = await focused();
+    // up is the day before in the same week; from a Sunday (the top row) it is a no-op
+    if (row === 0) expect(up.label).toBe(previousWeek);
+    else expect(up.row).toBe(row - 1);
     await page.keyboard.press("ArrowDown");
-    const nextDay = await page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
-    expect(nextDay).not.toBe(previousWeek);
-    expect(nextDay!.split(" on ")[1]!.slice(0, 3)).toBe("mon");
+    const down = await focused();
+    if (row === 0) {
+      // down from the no-op is the next weekday
+      expect(down.label).not.toBe(previousWeek);
+      expect(down.label.split(" on ")[1]!.slice(0, 3)).toBe("mon");
+    } else {
+      expect(down.label).toBe(previousWeek);
+    }
 
     await page.keyboard.press("Home");
     const home = await page.evaluate(() => document.activeElement?.getAttribute("data-col"));
